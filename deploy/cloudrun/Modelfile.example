@@ -1,6 +1,0 @@
-# (B) 自分の GGUF を Ollama に取りこむための Modelfile の例(Dockerfile.ollama の (B))。
-# 先生PCの Ollama に入っているものと同じにするなら、先生PCで `ollama show gemma4:12b --modelfile` を実行して、
-# その出力(FROM のファイル名を gemma.gguf に直したもの)を、deploy/cloudrun/Modelfile として置く。
-# gemma.gguf は、大きい(約 8GB)ので、Git に入れない(.gitignore の *.gguf)。Cloud Build には、手元のファイルを送る。
-FROM ./gemma.gguf
-PARAMETER num_ctx 16384
