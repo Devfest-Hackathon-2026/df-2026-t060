@@ -1,0 +1,37 @@
+# コンテナ(server/Dockerfile)に入れないもの。AIサーバーに必要なのは server/ と public/js/(計算の部品)だけ。
+.git
+.gitignore
+.firebase
+.firebaserc
+firebase.json
+firestore.rules
+firestore-debug.log
+*.log
+node_modules
+server/node_modules
+**/node_modules
+
+# 秘密・先生PCだけのデータ(中に入れない)
+.env
+.env.*
+server/data
+server/sim-library/learned
+server/sim-library/gen
+server/ext/pending
+_deleted
+_backup
+
+# 画面・テスト・評価・ドキュメントは、AIサーバーには要らない
+public/*.html
+public/css
+public/mpl
+public/js/vendor
+tests
+eval
+docs
+tools
+deploy
+relay
+*.md
+*.gguf
+*.safetensors

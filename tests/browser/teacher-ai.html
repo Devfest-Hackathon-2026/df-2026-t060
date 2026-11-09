@@ -1,0 +1,97 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>AIのつなぎ先(先生PC / Cloud Run)の画面のテスト</title>
+<!-- 本物のブラウザで、先生の画面の「AI」の表示・つなぎ先の設定・Cloud Run を起こして待つ動きを確かめる(node tools/browser-check.mjs teacher-ai)。
+     Cloud Run のかわりに、fetch を差しかえた偽の応答を使う。通信層は fake-transport.js(import map)。 -->
+<script type="importmap">{ "imports": { "/js/transport.js": "/__test/fake-transport.js" } }</script>
+<link rel="stylesheet" href="/css/style.css">
+<pre id="result"></pre>
+<div id="stage"></div>
+<script type="module">
+const checks = []; const check = (n, ok, d = '') => checks.push({ name: n, ok: !!ok, detail: d });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const { fake } = await import('/__test/fake-transport.js');
+const $ = (id) => document.getElementById(id);
+const CR = 'https://kyozai-ai-test.a.run.app';
+
+// ---- Cloud Run のまね:はじめの2回の /ready はつながらず(止まっている)、3回目からモデルまで使える ----
+const log = { ready: 0, urls: [], lab: [] };
+const { makeLabPlan } = await import('/js/hybrid-lab.js');
+const realFetch = window.fetch.bind(window);
+window.fetch = async (url, opt) => {
+  const u = String(url);
+  if (u.startsWith(CR) || u.startsWith('http://localhost:8787')) {
+    log.urls.push(u);
+    if (u.startsWith('http://localhost:8787')) throw new TypeError('Failed to fetch'); // 先生PCのサーバーは動いていない
+    if (u === CR + '/ready') {
+      log.ready++;
+      if (log.ready <= 2) throw new TypeError('Failed to fetch');
+      return new Response(JSON.stringify({ ok: true, model: 'gemma4:12b', where: 'cloudrun' }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    // 工房の提案を模擬し、宛先と認証トークンを確かめる。
+    if (u === CR + '/api/lab-plan') {
+      log.lab.push({ url: u, auth: new Headers(opt?.headers).get('authorization') });
+      return new Response(JSON.stringify({ model:'gemma4:12b', plan:makeLabPlan('buoyancy') }), { status:200, headers:{'content-type':'application/json'} });
+    }
+    if (u.startsWith(CR)) return new Response('{}', { status: 404 });
+  }
+  return realFetch(url, opt);
+};
+
+try {
+  localStorage.setItem('kyozai-api', CR);
+  localStorage.setItem('kyozai-teacher', JSON.stringify({ code: 'ABC234', name: '5年2組', grade: 5 }));
+  Object.assign(fake, { mode: 'firebase', kind: 'google', mine: [{ code: 'ABC234', name: '5年2組', grade: 5, createdAt: 1 }], calls: [] });
+  const html = await (await realFetch('/teacher.html')).text();
+  const body = new DOMParser().parseFromString(html, 'text/html').body;
+  $('stage').replaceChildren(...[...body.childNodes].filter((n) => n.tagName !== 'SCRIPT'));
+  await import('/js/teacher.js');
+
+  await wait(300);
+  check('保存した Cloud Run を使う(止まっているので「起こしています」と出る)', /起こしています/.test($('aiStatus').textContent) && $('aiStatus').classList.contains('wait'), $('aiStatus').textContent);
+  await wait(15000); // 5秒おきに /ready を見る(3回目で使えるようになる)
+  check('起こし終わったら、モデル名と「Cloud Run」が出て、緑になる', $('aiStatus').textContent === 'AI:gemma4:12b(Cloud Run)' && $('aiStatus').classList.contains('on'), $('aiStatus').textContent);
+  check('/ready を、つながるまで何回か見た(3回以上)', log.ready >= 3, String(log.ready));
+  check('先生の画面は、そのあいだも開ける(クラスが出ている)', !$('app').hidden && $('code').textContent === 'ABC234');
+
+  // ---- 設定のパネル ----
+  check('はじめはパネルが閉じている', $('aiPanel').hidden);
+  $('aiStatus').click();
+  check('「AI」の表示を押すとパネルが開く。Cloud Run が選ばれ、アドレスが入っている', !$('aiPanel').hidden && $('apiCloud').checked && !$('apiLocal').checked && $('apiUrl').value === CR && !$('apiUrl').disabled, $('apiUrl').value);
+  $('apiUrl').value = 'https://evil.example';
+  $('apiSave').click();
+  await wait(100);
+  check('使えないアドレスは保存しない(理由が出る)', /run\.app/.test($('apiMsg').textContent) && localStorage.getItem('kyozai-api') === CR && !$('aiPanel').hidden, $('apiMsg').textContent);
+  $('apiUrl').value = CR;
+  $('apiTest').click();
+  await wait(300);
+  check('「つなぎ先を調べる」:つながって、モデル名が出る', /つながりました.*Cloud Run.*gemma4:12b/.test($('apiMsg').textContent), $('apiMsg').textContent);
+  // 先生PCにもどす
+  $('apiLocal').checked = true; $('apiLocal').dispatchEvent(new Event('change'));
+  check('先生PCを選ぶと、アドレス欄は使えなくなる', $('apiUrl').disabled);
+  $('apiSave').click();
+  await wait(500);
+  check('保存:Cloud Run の設定が消え、パネルが閉じる', localStorage.getItem('kyozai-api') === null && $('aiPanel').hidden);
+  check('先生PCのサーバーが動いていないので「つながっていません」と出る', $('aiStatus').textContent === 'AI:つながっていません' && $('aiStatus').classList.contains('off'), $('aiStatus').textContent);
+  // もう一度 Cloud Run にする
+  $('aiStatus').click();
+  $('apiCloud').checked = true; $('apiCloud').dispatchEvent(new Event('change'));
+  $('apiUrl').value = CR + '/teacher.html'; // パスつきで入れても、場所だけを覚える
+  $('apiSave').click();
+  await wait(500);
+  check('パスつきで入れても、場所(オリジン)だけを保存する', localStorage.getItem('kyozai-api') === CR, localStorage.getItem('kyozai-api'));
+  check('Cloud Run にもどすと、使える(/ready はもうつながる)', $('aiStatus').textContent === 'AI:gemma4:12b(Cloud Run)', $('aiStatus').textContent);
+  // トークンつきの呼び出し(/api/...)は、先生が選んだ場所(保存した Cloud Run)にだけ行く。入れようとした evil.example には行っていない
+  // (/api/models は、先生PCのモデルの状態を見るだけの呼び出し。トークンは付けない。先生PCを選んだときに、先生PC(localhost)にだけ行く)
+  $('openHybridLab').click();
+  document.querySelector('.lab-ai input').value = '水に浮く物体を調べたい';
+  document.querySelector('.lab-ai').requestSubmit();
+  await wait(350);
+  check('工房の提案は、選んだ Cloud Run にトークンつきで送る',
+    log.lab.length === 1 && log.lab[0].url === CR + '/api/lab-plan' && log.lab[0].auth === 'Bearer fake-token'
+      && document.querySelector('.lab-title').textContent === '浮く物体と沈む物体');
+  $('closeHybridLab').click();
+  check('使えないアドレス(evil.example)には、何も送っていない', !log.urls.some((u) => u.includes('evil')));
+} catch (e) { checks.push({ name: '例外', ok: false, detail: String(e.stack || e) }); }
+document.getElementById('result').textContent = JSON.stringify({ ok: checks.every((c) => c.ok), checks });
+</script>

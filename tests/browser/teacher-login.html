@@ -1,0 +1,69 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>先生のログイン(Google)の画面のテスト</title>
+<!-- 本物のブラウザで、先生の画面のログインの流れを確かめる(node tools/browser-check.mjs teacher-login)。
+     通信層だけを fake-transport.js に差しかえる(import map)。本物の Google ログインは、ここでは試せない。 -->
+<script type="importmap">{ "imports": { "/js/transport.js": "/__test/fake-transport.js" } }</script>
+<pre id="result"></pre>
+<div id="stage"></div>
+<script type="module">
+const checks = []; const check = (n, ok, d = '') => checks.push({ name: n, ok: !!ok, detail: d });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const { fake } = await import('/__test/fake-transport.js');
+const KEY = 'kyozai-teacher';
+const $ = (id) => document.getElementById(id);
+const html = await (await fetch('/teacher.html')).text();
+const body = new DOMParser().parseFromString(html, 'text/html').body;
+const mount = () => { document.getElementById('stage').replaceChildren(...[...body.cloneNode(true).childNodes].filter((n) => n.tagName !== 'SCRIPT')); };
+const vis = (id) => !$(id).hidden;
+
+try {
+  // ---- 場面A:前の作りの先生(匿名のまま)で、このブラウザにクラスがある → Google でログイン(ひもづけ)→ そのクラスがそのまま開く ----
+  localStorage.setItem(KEY, JSON.stringify({ code: 'ABC234', name: '5年2組 理科', grade: 5 }));
+  Object.assign(fake, { kind: 'legacy', mine: [{ code: 'ABC234', name: '5年2組 理科', grade: 5, createdAt: 2 }], calls: [] });
+  mount();
+  await import('/js/teacher.js?run=A');
+  check('A: ログインの画面が出る(クラスや先生の画面はまだ出ない)', vis('login') && !vis('app') && !vis('setup'));
+  check('A: 前のクラスがあるので「引き継げます」の説明が出る', vis('loginLegacy'));
+  check('A: ログインするまでは、自分のクラスの一覧を取らない', !fake.calls.includes('listMyClasses'));
+  $('googleLogin').click();
+  await wait(800);
+  check('A: 匿名のアカウントに Google をひもづける(link)', fake.calls.includes('login:link'), fake.calls.join());
+  check('A: ログインしたら、前のクラスがそのまま開く(クラスコードが出る)', vis('app') && $('code').textContent === 'ABC234', $('code').textContent);
+  check('A: ログインの画面は消え、先生の名前とログアウトが出る', !vis('login') && vis('account') && $('accountName').textContent === '山田 花子');
+
+  // ---- 場面B:別の先生が同じブラウザでログイン → 覚えているクラスは自分のものではないので開かない。自分のクラスの一覧を出す ----
+  localStorage.setItem(KEY, JSON.stringify({ code: 'OTHER9', name: '別の先生のクラス', grade: 7 }));
+  Object.assign(fake, { kind: 'google', mine: [{ code: 'MINE22', name: '6年1組', grade: 6, createdAt: 3 }, { code: 'MINE33', name: '中1 理科', grade: 7, createdAt: 2 }], calls: [] });
+  mount();
+  await import('/js/teacher.js?run=B');
+  await wait(500);
+  check('B: ログインずみなら、ログインの画面は出ない', !vis('login'));
+  check('B: 別の先生のクラス(OTHER9)は開かない', !vis('app'));
+  check('B: 自分のクラスの一覧が出る(2つ)', vis('setup') && vis('myClassesBox') && $('myClasses').children.length === 2, $('myClasses').textContent);
+  check('B: 一覧にクラスコードが出る', /MINE22/.test($('myClasses').textContent) && /MINE33/.test($('myClasses').textContent));
+  $('myClasses').querySelector('button').click();
+  await wait(500);
+  check('B: 「このクラスを開く」で、そのクラスが開く', vis('app') && $('code').textContent === 'MINE22', $('code').textContent);
+  check('B: 開いたクラスは覚える(次からそのまま開く)', JSON.parse(localStorage.getItem(KEY)).code === 'MINE22');
+
+  // ---- 場面C:ログインなし(はじめて)→ ログインの画面。引き継ぎの説明は出ない。失敗したら理由が出る ----
+  localStorage.removeItem(KEY);
+  Object.assign(fake, { kind: 'none', mine: [], calls: [], loginError: 'ログインの小さい画面(ポップアップ)がブラウザに止められました。' });
+  mount();
+  await import('/js/teacher.js?run=C');
+  check('C: はじめてなら、ログインの画面だけ出る(引き継ぎの説明は出ない)', vis('login') && !vis('loginLegacy') && !vis('app') && !vis('setup'));
+  $('googleLogin').click();
+  await wait(500);
+  check('C: ログインに失敗したら、理由が出て、もう一度押せる', /ポップアップ/.test($('loginMsg').textContent) && !$('googleLogin').disabled, $('loginMsg').textContent);
+  check('C: 失敗したあとも、クラスの画面は出ない', vis('login') && !vis('app'));
+  delete fake.loginError;
+  $('googleLogin').click();
+  await wait(700);
+  check('C: もう一度押すと、ログインできて、クラスをつくる画面が出る(popup)', fake.calls.includes('login:popup') && vis('setup') && !vis('login'), fake.calls.join());
+  check('C: 一覧がないときは「自分のクラス」の欄は出ない', !vis('myClassesBox'));
+  // ログアウトのボタン(押すと、画面を読みこみ直してログインなしにもどる。ここで押すと、このテスト自体が読みこみ直されるので、押さない)
+  check('C: ログインしたあと、ログアウトのボタンが出ている', vis('account') && $('logout').textContent === 'ログアウト');
+} catch (e) { checks.push({ name: '例外', ok: false, detail: String(e.stack || e) }); }
+document.getElementById('result').textContent = JSON.stringify({ ok: checks.every((c) => c.ok), checks });
+</script>
