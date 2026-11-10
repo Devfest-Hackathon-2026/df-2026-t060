@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>クラスの教材</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/inquiry.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/studio.css">
+</head>
+<body class="student">
+  <header class="appbar">
+    <span class="brand"><span class="brand-mark" aria-hidden="true">教</span><span class="brand-text"><span class="brand-name">クラスの教材</span><span class="brand-sub" id="who"></span></span></span>
+    <div class="appbar-right"><span id="net" class="net"></span><span id="bleState" class="pill ble-pill" hidden></span><span id="mode" class="badge"></span></div>
+  </header>
+
+  <section id="join" class="card narrowcard" hidden>
+    <h2>クラスに入る</h2>
+    <div id="bleBox" class="stack" hidden>
+      <p id="bleLead">先生のパソコンと <b>Bluetooth</b> でつなぎます。先生のパソコンの Bluetooth を入れて、近くで、下のボタンを押してください。</p>
+      <button id="bleConnect" type="button" class="primary">Bluetooth で先生のパソコンにつなぐ</button>
+      <p id="bleMsg" class="msg" role="status"></p>
+    </div>
+    <form id="joinForm" class="stack">
+      <label>クラスコード <input id="codeInput" autocomplete="off" required maxlength="8" class="codein"></label>
+      <label>出席番号 <input id="seatInput" type="number" min="1" max="60" required inputmode="numeric"></label>
+      <button class="primary">入る</button>
+      <p id="joinMsg" class="msg"></p>
+    </form>
+    <p class="small">名前は入れません。出席番号だけで大丈夫です。</p>
+  </section>
+
+  <main id="app" class="sgrid" hidden>
+    <div id="aiBanner" class="aibanner" hidden role="status"></div>
+    <section id="bleCard" class="card blecard" hidden aria-live="polite">
+      <div class="blehead"><span class="bleicon" aria-hidden="true">ᛒ</span><h2>Bluetooth</h2><span id="bleCardState" class="pill off">つながっていません</span></div>
+      <p id="bleCardText" class="small">クラスに入ったあとで、先生のパソコンと Bluetooth でもつなげます。ネットが不安定なときも、質問や先生の返事が届きます(先生のパソコンの近くで)。</p>
+      <p><button id="bleCardBtn" type="button" class="primary">Bluetooth で先生のパソコンにつなぐ</button></p>
+      <p id="bleCardMsg" class="msg" role="status"></p>
+    </section>
+    <section id="viewer" class="card viewer" hidden></section>
+
+    <section class="card">
+      <h2>とどいた教材</h2>
+      <p class="small">わからないことは、教材をひらいて、その教材の中の「この教材について聞く」で聞いてね。</p>
+      <ul id="materials" class="tiles"></ul>
+    </section>
+
+    <section class="card" id="repliesCard" hidden>
+      <h2>先生からの返事</h2>
+      <ul id="replies" class="replies"></ul>
+    </section>
+
+    <button id="leave" class="ghost small leave">クラスを出る</button>
+  </main>
+
+  <script src="offline-register.js" defer></script>
+  <script type="module" src="js/student.js"></script>
+</body>
+</html>
