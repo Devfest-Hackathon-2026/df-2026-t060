@@ -1,0 +1,28 @@
+// 自動生成。元のJSONを編集し、このスクリプトで更新する。
+export default [
+  {
+    "title": "人工衛星が地球を回る(円軌道)",
+    "request": "中3の発展で、人工衛星が地球のまわりを回るようすを見せたい",
+    "config": {
+      "system": "orbit",
+      "curriculum": { "grade": "中3", "unit": "運動とエネルギー(発展)" },
+      "params": { "alt": 400, "ratio": 1, "incl": 0, "m": 1000 },
+      "render": "2d",
+      "controls": ["alt", "ratio", "incl"],
+      "speed": 10
+    }
+  },
+  {
+    "title": "速さを変えると軌道はどうなる(楕円・飛んでいく)",
+    "request": "中3の発展で、打ち出す速さを変えると衛星の軌道がどう変わるかを見せたい",
+    "config": {
+      "system": "orbit",
+      "curriculum": { "grade": "中3", "unit": "運動とエネルギー(発展)" },
+      "params": { "alt": 20000, "ratio": 1.2, "incl": 30, "m": 1000 },
+      "render": "2d",
+      "controls": ["ratio", "alt", "incl"],
+      "speed": 10
+    }
+  }
+]
+;

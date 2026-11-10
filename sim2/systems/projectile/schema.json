@@ -1,0 +1,22 @@
+{
+  "x-label": "投げた物体の運動(自由落下・投射)",
+  "x-measures": "落ちるまでの時間・飛んだきょり・いちばん高いところ・着地の速さ",
+  "x-units": [
+    { "grade": "中3", "unit": "運動の規則性" },
+    { "grade": "中3", "unit": "力学的エネルギー" }
+  ],
+  "render": ["2d", "3d"],
+  "solvers": ["analytic", "rk4", "velocityVerlet"],
+  "params": {
+    "type": "object",
+    "required": ["h0", "v0", "angle", "m", "g"],
+    "additionalProperties": false,
+    "properties": {
+      "h0": { "type": "number", "minimum": 0, "maximum": 100, "x-aliases": ["高さ", "はじめの高さ"], "x-label": "はじめの高さ", "x-unit": "m", "x-step": 0.5, "x-default": 20 },
+      "v0": { "type": "number", "minimum": 0, "maximum": 40, "x-aliases": ["はじめの速さ", "初速", "速さ"], "x-label": "投げる速さ", "x-unit": "m/s", "x-step": 0.5, "x-default": 0 },
+      "angle": { "type": "number", "minimum": -90, "maximum": 90, "x-aliases": ["角度", "投げる角度"], "x-label": "投げる角度(水平から上向きが+)", "x-unit": "度", "x-step": 1, "x-default": 0 },
+      "m": { "type": "number", "minimum": 0.1, "maximum": 10, "x-aliases": ["重さ", "質量"], "x-label": "物体の質量", "x-label-e": "物体の重さ", "x-unit": "kg", "x-step": 0.1, "x-default": 1 },
+      "g": { "type": "number", "minimum": 0.5, "maximum": 30, "x-aliases": ["重力"], "x-label": "重力加速度", "x-label-e": "重力の強さ", "x-unit": "m/s²", "x-step": 0.01, "x-default": 9.8 }
+    }
+  }
+}
