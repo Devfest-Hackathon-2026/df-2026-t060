@@ -14,7 +14,7 @@ hakkasonは、小学校高学年（小5・小6）から中学生（中1〜中3�
 
 デモページ：
 
-https://kyoiku-hakkason–demo-share-yupfa3zo.web.app/demo.html?demo
+https://kyoiku-hakkason--demo-share-yupfa3zo.web.app/demo.html?demo
 
 ブラウザからアクセスして、先生側と児童側の画面や、実験・記録・教材の引き継ぎなどの機能を確認できます。
 
