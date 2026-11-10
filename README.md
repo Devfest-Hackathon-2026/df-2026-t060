@@ -1,180 +1,322 @@
-# hakkason — クラスで育つ教材
+hakkason — クラスで育つ教材
 
-ハッカソンの製作。先生が配信した教材が児童の端末にリアルタイムで届き、児童の「先生に聞く」が先生画面に届く通信部分です。
-対象は**小学校高学年(小5・小6)から中学生(中1〜中3)**。学年ごとの単元は表示に使うが、関係のある内容の先取りは制限しない。
+ひとりの「なぜ？」を、クラスの次の実験へ。
 
-## サイトのURL(生徒役の方へ)
+hakkasonは、小学校高学年（小5・小6）から中学生（中1〜中3）を対象にした、理科の探究学習を支えるWebアプリです。
 
-- **児童の画面:https://kyoiku-hakkason.web.app/student.html**
-  1. 上のURLをブラウザ(Chrome・Edge・Safari)で開く
-  2. 先生(開発者)から聞いた「クラスのコード」と、自分の座席の番号を入れて入る
-  3. 先生が配信した教材(シミュレーション)が出る。条件のスライダーを動かして、予想 → 実験 → 結果をためす
-  4. わからないことは「先生に聞く」から送る(AIが答え、先生にも届く)
-- 先生の画面(`teacher.html`)は、先生のPCのAIサーバー(`localhost:8787`)から開くので、生徒役の方は使わない。
-- 教材は、先生が配信したときだけ届く。何も出ないときは、先生に配信してもらってから、ページを開き直す。
-- 質問の文は、サーバーのログに残さない。個人の名前や学校名は書かないでください(テスト用です)。
+先生が配信したシミュレーションで生徒が条件を変えて実験し、観察・比較・説明・次の問いを記録します。その根拠を先生が確認して教材を改訂し、別の生徒が引き継いで確かめることで、クラス全体で問いを育てます。
 
-## 新しい作り(sim2):AIは設定だけ、計算と絵は確かめ済みのテンプレート
+公開デモ
 
-`public/js/sim2/`。AI(Gemma)はプログラムを書かず、**設定(config)か、その差分(JSON Patch)だけ**を出す。
+先生・児童用アプリ
 
-| 層 | 中身 |
-|---|---|
-| config | `{ system, curriculum: { grade, unit }, params, render, controls }`。JSON Schema で確かめてから使う(`core/schema.js`) |
-| engine | 状態 y と dy/dt(系)と、積分器(速度ベルレ・RK4・後退オイラー・解析解)を分ける。決まった刻み Δt で進め、絵とは切りはなす(`core/engine.js`) |
-| renderer | 2D(Canvas)。暗い表示・Space Mono・エネルギーの棒グラフ・実スケール/誇張表示。端末の速さで画質を自動調整 |
-| validator | エネルギーの保存・理論値とのずれを毎フレーム見張り、こえたら警告(`core/monitor.js`、系ごとの `validator.js`) |
+以下のURLから、先生と児童が利用するアプリのデモを確認できます。
 
-- 系(`systems/`):単振り子(小5・中3)・斜面と記録タイマー(中3)・ジェットコースター(中3)・凸レンズの像(中1)・直流回路(中2)。足し方は `ADD_SYSTEM.md`。
-- 先生の画面:「要望から作る」「要望で直す」→ まずAIなしで読む(`core/intent.js`)→ 読めないときだけ Gemma → 形と物理を確かめ → 変更前後をならべ、「適用」で反映。版の履歴・元に戻す・保存・JSON の書き出し/読みこみ。
-- 児童:小学生はふりがな・数式なし、「予想 → 実験 → 結果」(表と CSV)。大きいボタン・スライダー。
-- サーバー:`/api/classify` `/api/generate` `/api/edit` `/api/editlog`。適用した「要望 → 差分」は `server/data/edits.jsonl` にため、`node tools/export-lora.mjs` で学習用の形に書き出せる(学習はまだしない)。
-- 評価:`node eval/run.mjs [--ai]`(要望100件。正答率・形が合う割合・物理の確かめ・応答時間。`eval/history/` に残る)。
-- ライセンス:`LICENSES.md`。
+デモページ：
 
-### 児童の「実験助手」(端末の小さいAI)
-- 児童がことばで条件を変える(「ひもをながくして」「月でやったら?」「重さでかわるかくらべたい」「なんで?」)。
-- 端末のAI(Gemma 4 E2B)は、変更の内容の JSON(set・preset・compare・explain・reset・unknown)だけを出す。
-  2倍などの計算・範囲(「3mまでだよ」)・プリセットの値(NASA の重力・乾電池 1.5 V)・説明の文(確かめ済み)は、すべてアプリが行う(`core/assistant.js` `core/presets.js` `core/explain.js`)。
-- まずAIなし(ことばの照らし合わせ)で読み、読めないときだけAIにたのむ。モデルが読みこめない端末では、ことばとスライダーだけで使える。
-- 指示(システムプロンプト)は系・学年ごとに自動で作る(500 トークン以内)。評価:`node eval/run-student.mjs local|hybrid <モデル>`(児童らしい要望50件)。
+https://kyoiku-hakkason–demo-share-yupfa3zo.web.app/demo.html?demo
 
-### 部品(先生用・テンプレートでできないとき)
-- Gemma 12B が書くのは「部品」の関数だけ:力の式 `force(state, t, params)`、時系列の分析 `analyze(series)`、実験データの分析 `analyzeCsv(rows)`(`server/ext/`)。
-- 閉じた場所で動かす:サーバーは Node の権限モデル(ファイル・ネット・プロセス禁止)+ vm(Math と引数だけ、eval 禁止)、1秒・64MB まで。児童の端末は、通信を禁止した枠(iframe)の中の Web Worker で、1秒で止める(`core/ext-runtime.js`)。
-- テスト(形・有限の数・単位・保存量・力と位置エネルギーの坂・答えがわかっているデータ)→ だめなら理由を返して直させる(最大3回)→ それでもだめならテンプレートの代わりの案。
-- テストを通ったものは「承認待ち」。先生が要約・テスト・コード・試しの表示を見て承認したものだけ、教材(`config.ext`)と本棚(`systems/<系>/extensions/`)に入る。評価:`node eval/run-ext.mjs`(20件)。
+ブラウザからアクセスして、先生側と児童側の画面や、実験・記録・教材の引き継ぎなどの機能を確認できます。
 
-### AIを速く:llama.cpp(試したが、ふつうは Ollama を使う)
-- `server/start-llamacpp.ps1` で llama.cpp を起動し、`LLM_BACKEND=llamacpp LLM_BASE_URL=http://127.0.0.1:8090` で切りかえられる。
-- 短い答え(分類・差分)は速い(評価セットの平均 1.06 → 0.48 秒、型を選んだサンプル 74 → 43 秒)。
-- しかし長い JSON(シミュレーションのプログラム)は、出力の形をしばる処理が重く、Ollama の半分の速さ(5 対 10 トークン毎秒)。
-  「AIが新しく作る」サンプルが 14 分かかったので、**ふつうは Ollama**(切りかえない)にする。
-- 下書き用モデルでの高速化は、gemma3:1b とは語彙の方式がちがって使えず、くり返し予想(ngram)は効かなかった。
-- Ollama と llama.cpp は、GPU のメモリが足りず同時には使えない。
-## シミュレーション(力学)
+<このURLを先生・児童用アプリのデモページとして利用してください。>
 
-| 種類 | 単元 | 児童が変えられる条件(先生が選ぶ) | 調べること |
-|---|---|---|---|
-| 振り子 | 小5 振り子の運動 | ひもの長さ・おもりの重さ・ふれはば | 1往復する時間 |
-| てこ | 小6 てこのはたらき | 左右のおもりの数と位置 | つり合うか |
-| ばね | 中1 力のはたらき | つるす質量・ばねのかたさ | 力とのび(グラフに記録) |
-| 斜面を下る台車 | 中3 運動の規則性 | 斜面の角度・台車の質量 | 0.1秒ごとのきょり・速さ |
+アプリの特徴
 
-- 先生は「教材をつくって配信」で、種類・児童が変えられる条件・はじめの値・めあて・数値を見せるかを決め、その場で動かして確かめられる。AIの案も同じ形で入る。
-- 表示する数値は公式から出さず、動きを計算(振り子は RK4)して計る。正しさは `tests/sims.test.js` で教科書の式・理論値とくらべる。
-- 条件の一覧は `public/js/sim-catalog.js`(画面と AIサーバーで共通)、物理は `sim-physics.js`、画面は `sims.js`、先生の編集欄は `sim-editor.js`。
-- 4種類で確かめられない質問(重力・落下・音など)は、先生の側の Gemma 4 12B が **JavaScript でシミュレーションを作る**(`type: 'custom'`)。
-  - 決まった4つの関数(init / step / draw / readouts)だけを書かせ、`checkSimCode` で使ってはいけないもの(fetch・eval・localStorage など)を断る。
-  - `sim-custom.js` の `<iframe sandbox="allow-scripts">` と CSP(`default-src 'none'`)の中だけで動かす。ページ本体・ログイン情報・保存データ・ネットにはさわれない(わざと試して、すべて止まることを確かめた)。
-  - 結果をプログラムで計って確かめられないので、先生が動かしてプログラムを読んで確かめてから配信する。試し方:`node server/try-custom-sim.js`
-- **部品とお手本で組み立てる**(AIが一から書くと、絵が小さい・重力の向きが逆、などのまちがいが多かったため)
-  - 部品 `K`(`public/js/sim-kit.js`):球・円・線・矢印・四角・ばね・地面・目もり・軌跡・文字と、落下(空気のていこう)・はね返り・引力(何個でも)・衝突・1周の数え方。
-    `K.view` で本当の大きさ(m・AU)の範囲を決めると、画面いっぱいに自動で合わせる。枠の中で、AIのプログラムより先に読みこむ。
-  - お手本(`server/sim-library/`):公転・ななめ投げ・衝突・はね返り・パラシュート・連星。どれも計った値が公式と2%以内(`tests/sim-kit.test.js`)。
-    質問に似たものを2つ選んでAIに見せ、似ている部分は流用させる。先生の画面で「計算を確かめたら全部○」だったものは、自動でお手本に加わる(`learned/`、リポジトリには入れない)。
-  - サーバーで確かめてから返す(`server/sim-check.js`):条件を変えて最後まで動かし、計った値と公式をくらべる。×・終わらない・エラーは、理由をつけてAIに書き直させる(3回まで)。
-    AIのプログラムは別プロセスの Node で、権限モデル(`--permission`)でファイル・ネット・プロセス起動を禁止し、文字列からのプログラム作成も禁止して動かす(`tests/sim-check.test.js`)。
-  - 試し方:`node server/try-kit-sim.js 出力.json "質問"`
-- **myPhysicsLab**(Erik Neumann、Apache License 2.0)のシミュレーションも使える(`type: 'mpl'`):ふりこ・ばねとおもり・ニュートンのゆりかご・ジェットコースター。
-  - `node tools/build-mpl.mjs C:\dev\myphysicslab`(ソースは `git clone https://github.com/myphysicslab/myphysicslab`)で、使うファイルだけを TypeScript から JavaScript に直して `public/mpl/` に置く(道具の追加インストールなし。Node の型を消す機能を使う)。
-  - 英語の操作パネルはかくし、日本語のスライダーから条件の名前と数だけを送る(`mpl/view.js`)。myPhysicsLab は URL の `?` のあとをスクリプトとして実行するので、設定は `#` のあとでわたす。
-  - 一覧と日本語の名前・範囲は `public/js/mpl-catalog.js`。先生の編集欄・AIの案の両方から選べる。
+* 先生がシミュレーション教材を作成・配信できる
+* 児童・生徒が条件を変更して実験できる
+* 実験結果や根拠を記録できる
+* 生徒の疑問を次の教材の改訂につなげられる
+* 先生とGemmaが次の比較実験を考えられる
+* 2D・3D表示や測定値、グラフを使って現象を理解できる
+* オフライン環境での実験・記録にも対応する
 
-## 構成
+ローカルデモの起動方法
 
-| ファイル | 役割 |
-|---|---|
-| `public/teacher.html` / `js/teacher.js` | 先生画面：クラス作成、教材配信、質問の受信、AIで質問をまとめて教材の案をつくる |
-| `public/student.html` / `js/student.js` | 児童画面：クラス参加、教材の受信と表示、質問送信、「わからないときは」 |
-| `public/js/student-ai-prompt.js` | 児童のAIまわり：教材から答えの文を探す(AIなし)、AIへの指示、AIの文の検査 |
-| `public/js/student-ai.js` | 児童の端末の中で動くAI(WebLLM。Gemma 4 E2B) |
-| `public/js/transport.js` | 通信層（Firebase 版 / デモ版） |
-| `public/js/common.js` | 共通部品 |
-| `public/js/sim-*.js` / `sims.js` | シミュレーション(条件の一覧・物理・画面・先生の編集欄) |
-| `tests/sims.test.js` | シミュレーションの物理のテスト(`node --test tests/sims.test.js`) |
-| `server/` | 先生の側のAIサーバー(質問のまとめ・教材の案。Ollama 経由) |
-| `firestore.rules` | Firestore のセキュリティルール |
-| `docs/student-ai.md` | 児童の端末のAIで試したことと、決めたこと |
+ソース一式をフォルダーごと展開し、プロジェクト直下で実行します。
 
-### 先生の側のAIを動かす(先生PC)
+ローカルデモはPython 3だけで動きます。Gemma・Node.js・Firebaseの設定は、基本的なデモを試すだけなら不要です。
 
-```bash
-ollama pull gemma4:12b        # 先生の側のAI(約8GB)。先生の側は Gemma 4 12B だけで動かす
-cd server
-npm install
-npm start                     # http://localhost:8787
-```
+python start_local.py
 
-**先生PCでは `http://localhost:8787/teacher.html` を開く**(AIサーバーが先生の画面も配る)。
-`https://kyoiku-hakkason.web.app/teacher.html` から先生PCのAIサーバー(localhost)を呼ぶと、Edge/Chrome の「ローカル ネットワーク アクセス」の許可が要り、許可しないと「AIサーバーにつながりません」になる。
-localhost で開くと、ブラウザが別のサイトとして扱うので、クラスは localhost の画面で作り直す。
+macOS・Linuxなど、Python 3のコマンド名が異なる環境では次を使います。
 
-先生画面の「届いた質問」で、チェックした質問を「AIでまとめる」→「この問いで教材の案をつくる」。案は配信の入力欄に入るので、直してから配信する。配信すると、もとの質問は「対応済み」になる。
-モデルを変えるときは `LLM_MODEL`、Ollama の場所を変えるときは `LLM_BASE_URL`(環境変数)。
+python3 start_local.py
 
-### データの形（Firestore）
+Windowsでは、start_windows.bat のダブルクリックでも起動できます。
 
-```
-classes/{クラスコード}            { name, teacherUid(Google ログインの uid), createdAt, grade?(5〜9:小5〜中3) }
-  materials/{id}                 { title, explanation, sim, quiz[], publishedAt }
-  questions/{id}                 { seat, text, status: "new"|"done", createdAt }
-```
+1. ブラウザで http://127.0.0.1:8001/demo.html を開きます。
+2. 「確認用のクラスと教材を作る」 を押します。
+3. 表示された先生・生徒A・生徒Bのリンクを、同じブラウザの別タブで開きます。
+4. 生徒画面で、表示済みの出席番号のまま「入る」を押します。
 
-- 児童は匿名ログイン＋出席番号のみ。名前・メールは扱わない
-- 先生は Google ログイン(`docs/google-login.md`)。クラスは先生の Google アカウントにつくので、別のブラウザでも開ける
-- 一度届いた教材は端末にキャッシュされ、オフラインでも開ける
-- オフライン中の質問は端末に積まれ、つながった時に自動で送られる
-- 画面は `transport.js` のインターフェースだけを使うので、Web Bluetooth 中継版を後から同じ形で追加できる
+サーバーのターミナルは開いたまま使い、終了するときは Ctrl+C を押してください。
 
-## まず試す（デモモード・設定不要）
+ポートが使用中なら、次のように変更できます。
 
-```bash
-cd public
-python3 -m http.server 8000
-```
+python start_local.py --port 8002
 
-ブラウザで `http://localhost:8000/teacher.html` を開いてクラスを作り、表示された「児童用ページ」を別タブで開く。同じブラウザのタブ同士でつながります。
+デモの同期範囲は、同じブラウザ・同じURLのタブ間です。別PCとの通信にはFirebaseまたはBluetooth中継の設定が必要です。
 
-## Firebase につなぐ
+HTMLを直接ダブルクリックする file:// 方式ではなく、HTTPで開いてください。
 
-1. Firebase コンソールでプロジェクトを作成
-2. 「Authentication」で **匿名** ログインを有効化
-3. 「Firestore Database」を作成
-4. ウェブアプリを追加し、表示された設定を `public/js/config.js` の `firebaseConfig` に貼る
-5. デプロイ
+詳しい操作手順は START_HERE_JA.md にまとめています。
 
-```bash
-npm i -g firebase-tools
-firebase login
-firebase use --add            # 作ったプロジェクトを選ぶ
-firebase deploy --only hosting,firestore:rules
-```
+学習の流れ
 
-## ルールのテスト
+画面は、次の5段階で進みます。
 
-`firestore.rules` を変えたら、デプロイする前に実行します。Firestore エミュレーターを使うので、Java 21 以上が必要です。
+段階	生徒がすること
+1. 予想	何が起きそうか、どの条件に注目するかを書く
+2. 実験	条件を変えて動かし、観察と測定値を記録する
+3. 比較	記録を選び、同じ時間・条件で結果を比べる
+4. 説明	結果・根拠・理由・まだ分からないことを整理する
+5. 次の問い	実験の根拠と一緒に、次に確かめたい問いを先生へ送る
 
-```bash
-npm install
-npm test
-```
+先生は届いた問いと実験条件を確認し、比較案を編集・承認して教材を再配信します。
 
-確かめていること:質問は先生にだけリアルタイムで届く/児童は質問を読めない/おかしな質問(出席番号の範囲外、201字以上、名前つきなど)は送れない/ないクラスには送れない/クラスの一覧は取れない/教材を配信できるのは先生だけ。
+改訂した教材には元の質問・実験記録への参照が残り、別の生徒が根拠を引き継げます。「クラスで育った問い」から、教材の改訂をたどれます。
 
-## 今後
+デモで試せる一例
 
-- ~~先生のログインを匿名から Google ログインに変える~~ → 実装した(`docs/google-login.md`。Firebase コンソールで Google を有効にして、ルールと画面を公開すると使える)
-- ~~質問のまとめ → Cloud Run 上の Gemma で教材案を作る流れとつなぐ~~ → つなぐところまで実装した(`docs/cloudrun.md`。**コンテナのビルド・Cloud Run へのデプロイ・GPU で Gemma が動くことは、まだ確かめていない**)
-- ~~Web Bluetooth（Chromebook ⇔ 先生PC）の中継版 transport~~ → 実装した(`docs/bluetooth-relay.md`・`public/js/relay/`・`server/relay/`・`relay/TeacherRelay/`)。**本物の Chromebook とは、まだ確かめていない**
+1. 生徒Aが、人工衛星の速さを 0.60倍・1.60倍 に変えて実験する。
+2. 観察を記録し、「遠ざかっても、あとで戻ることはある？」を根拠と一緒に送る。
+3. 先生が「Gemmaなしで比較案を編集」で条件を確認し、改訂2を配信する。
+4. 生徒Bが、先生の比較案の 1.40倍・1.45倍 を同じ時計・表示範囲で比較する。
+5. 6時間・10日へ観察期間を延ばし、自分の記録と次の問いを先生へ返す。
+6. 先生が再び確認して配信し、改訂3へつなげる。
 
+Gemmaなしの比較案は、アプリに用意したひな型です。AIが生成した案とは区別して表示します。
 
-## AIのモデルを先生の画面からダウンロードする(先生PC)
+また、短時間の観測結果と、理想モデルの式から導く推論を分けて扱います。
 
-先生の画面の上の「AI:…」を押す → 「AIのモデル(先生PC)」で、ボタンを押すと Ollama にダウンロードさせます(`server/models.js`)。
+主な機能
 
-- **Gemma 4 12B がダウンロードずみなら、何もしません。**
-- なければ 12B をダウンロード。**できなければ Gemma 4 E4B** をダウンロードして、そちらで動かします(E4B がすでにあれば、ダウンロードしません)。
-- 起動のとき、12B がなく E4B があれば、E4B で動かします(`LLM_MODEL` を決めていれば、それを守ります)。
-- ダウンロードを始められるのは、そのクラスの先生だけ(Google ログイン、または先生PCのBluetooth教室)。Cloud Run では使いません(Ollama 側にモデルを入れます)。
-- 状態は `GET /api/models`、ダウンロードは `POST /api/models/ensure`。テストは `tests/server-models.test.js`。
+教材の作成・配信
+
+先生が題名、説明、実験条件、操作できる項目を設定し、その場で確かめて配信できます。
+
+登録済みモデルを使う教材JSONの取り込みにも対応します。
+
+シミュレーションと比較
+
+スライダーによる条件変更、測定値・グラフの表示、対応モデルの2D/3D切り替え、2条件の同時比較ができます。
+
+探究ノート
+
+予想、観察、実験条件、測定値、説明を保存し、JSON・CSVで書き出せます。
+
+根拠の引き継ぎ
+
+質問文に加え、根拠にした実験記録を先生へ送り、次の教材や別の生徒の実験へつなげます。
+
+理解の振り返り
+
+生徒の自己評価と先生の確認を扱います。
+
+記述の有無や自己評価を、理解の正しさの自動採点とは区別します。
+
+実験助手
+
+「ひもを長くして」「月でやったら？」などの言葉で条件を変えられます。
+
+対応する言葉はAIなしでも処理します。
+
+日本語音声入力
+
+同梱したVoskモデルで、端末内で音声を文字にします。
+
+モデルの準備とマイク許可が必要です。
+
+オフライン利用
+
+初回読み込みとキャッシュの準備後、教材の実験や記録を続けられます。
+
+主な教材
+
+分野	教材・モデルの例
+力と運動	振り子、てこ、ばね、斜面、ジェットコースター、投射
+電気と光	直流回路、凸レンズの像
+天体と重力	人工衛星の軌道、太陽系、惑星ごとの重力
+波・音・熱	ロープの横波、音と空気のふるえ、熱の伝わり方
+
+学年や単元は教材の表示に使いますが、関係する内容の先取りは制限しません。
+
+モデル追加の手順は ADD_SYSTEM.md を参照してください。
+
+AIの役割と計算の仕組み
+
+標準のシミュレーションでは、アプリが持つ物理モデルと計算処理を使います。
+
+AIは主に、要望からの設定生成、設定の差分、条件変更の操作、説明や比較案の作成を担当します。
+
+層	役割
+設定（config）	モデル、学年・単元、パラメーター、表示、操作項目を保持し、スキーマで検査する
+計算（engine）	状態と運動の式を管理し、固定刻みの数値積分などで計算する
+描画（renderer）	計算した状態をCanvasやThree.jsで2D・3D表示する
+検証（validator）	対応するモデルの保存量や理論値とのずれを検査する
+AI・意図解釈	自然言語を設定や操作へ変換し、適用前に形・範囲・物理を確認する
+
+数値計算にはRK4、速度ベルレ、後退オイラー、解析解などを使います。
+
+描画の速さと計算の刻みを分け、端末の表示性能だけで物理条件が変わらない構成にしています。
+
+高度な拡張には、AIによる関数やカスタムシミュレーションの生成も含まれます。これらは標準テンプレートとは別の経路で、制限した実行環境やテストを使い、先生の確認・承認を経て利用します。
+
+数値や形式の検査だけで、AIの説明や教材の教育的な妥当性まで保証するものではありません。
+
+先生側のAI（任意）
+
+先生PCのOllamaを通して、質問の整理、教材案、編集案、根拠を読んだ次の比較案を作ります。
+
+既定モデルは gemma4:12b です。
+
+必要なものは Node.js 22以上・Ollama・利用するモデルです。プロジェクト直下から次を実行します。
+
+ollama pull gemma4:12b
+npm ci --prefix server
+npm --prefix server start
+
+先生画面は http://localhost:8787/teacher.html から開きます。
+
+認証・教室との接続手順は AI_CONNECTION_JA.md を参照してください。
+
+環境変数	用途
+LLM_MODEL	使用するモデル名
+LLM_BASE_URL	Ollamaなど、モデルを実行するサーバーの場所
+LLM_BACKEND	バックエンドの切り替え。通常はOllama
+
+先生側AIは別のPCやサーバーで動かす構成にも対応します。
+
+Cloud Run用の構成は docs/cloudrun.md にありますが、今回の統合版で実GPUへのデプロイを検証したものではありません。
+
+生徒側のAI（任意）
+
+WebLLMを使い、対応端末のブラウザ内でAIを動かす機能があります。
+
+Gemma 4 E2Bを選択でき、画面上のダウンロード容量の目安は約2.7GBです。
+
+* WebGPUなど、選択するモデルに対応した端末が必要です。
+* 未保存のモデルは、準備ボタンを押して取得を許可した場合にダウンロードします。
+* 保存が完了したモデルは、同じブラウザ・同じURLのキャッシュから読み込めます。
+* AIが利用できない端末でも、スライダーや対応する言葉での条件変更、実験・記録を使えます。
+
+日本語音声入力用のVoskモデルと、Gemmaのモデルは別のものです。
+
+通信・保存
+
+方式	用途・範囲
+ローカルデモ	localStorage と BroadcastChannel を使い、同じブラウザのタブ間で同期する
+Firebase	インターネット経由で異なる端末間の教材・質問を共有する。先生はGoogleログイン、生徒は匿名ログインと出席番号で参加する
+Web Bluetooth中継	対応する生徒端末と先生PCの中継アプリをつなぐ。ブラウザ・OS・機器の対応確認が必要
+
+実験記録はブラウザ・出席番号・教材ごとに保存します。
+
+端末やブラウザを変更しても、ローカルの探究ノートが自動で移るわけではありません。必要に応じてJSON・CSVを書き出してください。
+
+Firebaseでは質問を教室のデータとして保存し、Firestoreルールで読み書きを制御します。AIサーバーの通常ログには質問本文を出さない設計です。
+
+Bluetoothの構成は docs/bluetooth-relay.md、先生の認証は docs/google-login.md を参照してください。
+
+Firebaseを使う場合
+
+1. 利用するFirebaseプロジェクトでAuthenticationとFirestoreを準備します。
+2. 先生用のGoogleログインと、生徒用の匿名ログインを有効にします。
+3. public/js/config.js の firebaseConfig と、認証の承認済みドメインを確認します。
+4. Firestoreルールのテスト後に、Hostingとルールをデプロイします。
+
+既存の生徒用公開URLは次のとおりです。
+
+https://kyoiku-hakkason.web.app/student.html
+
+今回の統合版をこの公開先へ反映したことは確認していません。手元の最新版を試す場合はローカルデモを使ってください。
+
+技術構成
+
+項目	使用技術
+画面	HTML・CSS・JavaScript（ES Modules）
+物理計算・描画	独自の計算エンジン、Canvas、Three.js、myPhysicsLab
+ローカル配信	Python標準ライブラリのHTTPサーバー
+通信・認証	Firebase Authentication、Cloud Firestore、BroadcastChannel、Web Bluetooth
+先生側AI	Node.js、Ollama、Gemma
+生徒側AI・音声	WebLLM、WebGPU、Vosk
+テスト	Node.js標準テストランナー、Firestoreエミュレーター、Playwright
+
+ディレクトリ構成
+
+.
+├── public/
+│   ├── demo.html              # 同一ブラウザで試すデモ
+│   ├── teacher.html           # 先生画面
+│   ├── student.html           # 生徒画面
+│   ├── js/
+│   │   ├── sim2/              # 計算・設定・検証・描画・実験UI
+│   │   ├── inquiry-*.js       # 探究記録・問い・引き継ぎ
+│   │   ├── understanding-*.js # 理解の振り返りと先生の確認
+│   │   ├── student-ai*.js     # 生徒端末AI
+│   │   └── transport.js       # 通信層
+│   ├── mpl/                   # myPhysicsLabの同梱版
+│   ├── models/                # 日本語音声モデル
+│   └── inquiry-offline-sw.js  # オフライン用Service Worker
+├── server/                    # 先生側AIサーバー・中継処理
+├── relay/TeacherRelay/        # Windows向け中継アプリ
+├── tests/                     # 物理・通信・認証・授業フローの検証
+├── eval/                      # AIの評価用データと実行スクリプト
+├── tools/                     # 検証・配布ファイル生成などの道具
+├── docs/                      # 認証・AI・中継・Cloud Runの詳細
+├── firestore.rules             # Firestoreセキュリティルール
+└── start_local.py              # ローカルデモの起動
+
+開発・テスト
+
+開発時はNode.js 22以上を用意し、ロックファイルに従って依存関係を導入します。
+
+npm ci
+npm ci --prefix server
+python tools/check-source.py
+
+物理計算と探究フローの代表的なテストは、次のように実行できます。
+
+node --test tests/sims.test.js tests/inquiry-flow.test.js tests/inquiry-server.test.js
+
+Playwrightと対応するChromiumを用意した開発環境では、ブラウザテストを実行できます。
+
+node tools/browser-check-playwright.cjs
+node tools/inquiry-flow-browser.cjs
+
+Firestoreを含む npm test には、Firebase CLIとJava 21以上、エミュレーターの取得が必要です。
+
+クラウドでの初期化やブラウザの指定、各コマンドの実行条件は CLOUD_SETUP_JA.md を参照してください。
+
+統合版の検証結果
+
+2026年11月9日の検証結果です。
+
+検証	結果
+Nodeの既存テスト（Firestoreルールを除く）	193件成功、失敗・スキップ0件
+ブラウザテスト	10ページ・99項目成功
+先生・生徒A・生徒Bの授業フロー	根拠の引き継ぎ、改訂3までの操作を確認
+保存・表示・オフライン	記録復元、10日比較・3D、音、教材JSON、タブレット幅、オフライン再読込を確認
+ソース・固定ハッシュ	検査対象334ファイルの不足0件、固定SHA256の3件一致
+Firestoreルール	エミュレーター配布先への通信が拒否され、今回の環境では未実行
+
+実Gemmaの回答品質、実Bluetooth機器、実マイクの日本語認識精度、実iPadでの性能は別途確認が必要です。
+
+詳細は INTEGRATION_STATUS_JA.md を参照してください。
+
+関連ドキュメント
+
+ドキュメント	内容
+START_HERE_JA.md	起動と先生・生徒のデモ操作
+CODE_GUIDE_JA.md	機能ごとのコード案内、教材追加
+ADD_SYSTEM.md	物理モデルの追加方法
+AI_CONNECTION_JA.md	先生PCのAIへの接続
+docs/google-login.md	先生のGoogleログイン
+docs/bluetooth-relay.md	Bluetooth中継の構成
+CLOUD_SETUP_JA.md	クラウド開発環境の再開と検証
+INTEGRATION_STATUS_JA.md	統合内容・検証結果・未検証事項
+
+ライセンス・出典
+
+外部ライブラリ、音声モデル、物理定数などの出典は LICENSES.md と LICENSES/ に記載しています。
+
+myPhysicsLab、Three.js、WebLLM、Voskなどのライセンス表記を同梱しています。
