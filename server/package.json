@@ -1,0 +1,17 @@
+{
+  "name": "kyozai-server",
+  "private": true,
+  "type": "module",
+  "description": "先生の側のAIサーバー:質問のまとめと教材の案づくり(Ollama 経由)",
+  "scripts": {
+    "start": "node index.js",
+    "try": "node try-draft.js",
+    "try:student": "node try-student-ai.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "jose": "6.2.12"
+  }
+}

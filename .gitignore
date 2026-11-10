@@ -1,0 +1,40 @@
+node_modules/
+.firebase/
+*.log
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+.env
+.env.*
+
+# .NET(先生PCの中継アプリ)
+relay/**/bin/
+relay/**/obj/
+
+# モデルの重み(大きいのでリポジトリに入れない)
+*.gguf
+*.safetensors
+*.task
+*.litertlm
+
+# 手元だけの控え
+_backup/
+_deleted/
+
+.DS_Store
+Thumbs.db
+
+# 先生の画面で確かめたシミュレーションのお手本(クラスの教材の題が入るので、リポジトリに入れない)
+server/sim-library/learned/
+
+# 先生が適用した「要望 → 差分」の記録(学習用。先生PCだけに置く)
+server/data/
+
+# 承認待ちの部品(先生PCだけ)
+server/data/extensions/
+
+# AIが作ったシミュレーション(先生PCの本棚)
+server/sim-library/gen/
+
+# ブラウザのテストの画面写真(tools/browser-check.mjs)
+tests/browser/out/
