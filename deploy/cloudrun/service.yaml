@@ -1,0 +1,88 @@
+# Cloud Run のサービス定義:AIサーバー(app)+ GPU で動く Ollama(ollama)の、2つのコンテナ(サイドカー)。
+# 使い方は docs/cloudrun.md。PROJECT / REGION / 使える先生 を書きかえて、
+#   gcloud run services replace deploy/cloudrun/service.yaml --region REGION
+#
+# ★この定義は、Cloud Run のドキュメント(GPU・サイドカー)にそって書いたが、ここでは実際にデプロイして確かめていない。
+#   GPU が使えるリージョン・GPU まわりの注釈(annotation)・CPU とメモリの上限は、Cloud Run の最新のドキュメントで確かめること。
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: kyozai-ai
+  labels:
+    cloud.googleapis.com/location: REGION
+  annotations:
+    run.googleapis.com/launch-stage: BETA
+    # 呼び出しは、ログインした先生のトークンで、サーバー自身が確かめる(Cloud Run の IAM ではなく、アプリで守る)。
+    # そのため、Cloud Run としては、だれでも呼べる設定(allUsers に run.invoker)にする。→ 使える先生は TEACHER_EMAILS / TEACHER_DOMAINS で決める
+    run.googleapis.com/ingress: all
+spec:
+  template:
+    metadata:
+      annotations:
+        # 使っていないときは 0 台(課金されない)。授業の前に先生の画面が起こす。授業中ずっと使うなら "1"
+        autoscaling.knative.dev/minScale: "0"
+        # 1台だけ(AIは1つずつ処理する・GPUの費用を増やさない)
+        autoscaling.knative.dev/maxScale: "1"
+        # 返事を書いているあいだも、CPU を止めない(長い生成のため)
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+        # GPU は、ゾーンをまたぐ冗長化なし(GPU 枠が少ないので)
+        run.googleapis.com/gpu-zonal-redundancy-disabled: "true"
+        # app は、ollama が起動してから起動する
+        run.googleapis.com/container-dependencies: '{"app":["ollama"]}'
+    spec:
+      # 同時に受ける数。AIサーバーが1つずつ処理して、3つまで待たせ、それをこえると「いそがしい」と返す
+      containerConcurrency: 4
+      # 長い生成(教材の案・新しいシミュレーション)は 5〜10 分かかる。最大 60 分
+      timeoutSeconds: 3600
+      nodeSelector:
+        run.googleapis.com/accelerator: nvidia-l4
+      containers:
+        - name: app
+          image: REGION-docker.pkg.dev/PROJECT/kyozai/app:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: LLM_BASE_URL
+              value: http://127.0.0.1:11434
+            - name: LLM_MODEL
+              value: gemma4:12b
+            - name: FIREBASE_PROJECT
+              value: kyoiku-hakkason
+            # ★使える先生を決める(どちらも空だと、Google アカウントがあればだれでも使えてしまう)。カンマで区切る
+            - name: TEACHER_EMAILS
+              value: ""
+            - name: TEACHER_DOMAINS
+              value: "school.example.ed.jp"
+            # 先生の画面を出す場所(CORS)。ふつうは変えなくてよい
+            - name: ALLOWED_ORIGINS
+              value: https://kyoiku-hakkason.web.app,https://kyoiku-hakkason.firebaseapp.com
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          # Ollama にモデルが入って、AIが使えるようになるまで、待つ(最大 約 5 分)
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+        - name: ollama
+          image: REGION-docker.pkg.dev/PROJECT/kyozai/ollama:latest
+          env:
+            - name: OLLAMA_HOST
+              value: 0.0.0.0:11434
+          resources:
+            limits:
+              # GPU(L4)の枠で使える上限の中に、app と合わせて収める(最低 4 CPU・16GiB)
+              cpu: "6"
+              memory: 28Gi
+              nvidia.com/gpu: "1"
+          startupProbe:
+            tcpSocket:
+              port: 11434
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
