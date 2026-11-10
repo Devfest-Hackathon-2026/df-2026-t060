@@ -1,0 +1,55 @@
+/* 探究用の共通レイアウト。既存の先生画面と生徒画面へ重ねて使う。 */
+:root{--inq-blue:#2356b1;--inq-teal:#087c79;--inq-paper:#f1f5fa;--inq-line:#d5dfec;--inq-ink:#18334c}
+[hidden]{display:none!important}
+body{font-family:system-ui,'Yu Gothic','Meiryo',sans-serif;background:#f0f4f8;color:var(--inq-ink)}
+body.student .sgrid{max-width:1200px;margin:auto;grid-template-columns:minmax(0,1fr)}
+.card{border:1px solid var(--inq-line);border-radius:18px;box-shadow:0 4px 18px #18334c07}
+.s2{border-radius:16px;background:white;overflow:visible}.s2-stage{border-radius:14px;overflow:hidden}.s2-canvas{min-height:280px;max-height:490px;width:100%}
+.s2-tabs{position:sticky;top:0;z-index:3;background:#f6f9ff;display:flex;gap:8px;padding:8px;border-radius:12px;flex-wrap:wrap}
+.s2-tab,.s2-btn{font:inherit;border:1px solid #b9c9dc;background:white;color:#214367;border-radius:10px;padding:10px 16px;min-height:44px;cursor:pointer}
+.s2-tab[aria-pressed=true],.s2-btn.primary{background:var(--inq-blue);color:white;border-color:var(--inq-blue)}
+.s2-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}.s2-btn:disabled{opacity:.55;cursor:default}
+.s2-ctrls{background:var(--inq-paper);padding:16px;border-radius:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px}
+.s2-ctrl input[type=range]{width:100%;height:32px}.s2-simpart{margin:12px 0}.inq-record,.inq-predict,.inq-reflection,.inq-next,.inq-comparison{padding:18px;background:#f6f9fd;border:1px solid var(--inq-line);border-radius:14px;margin:14px 0}
+.inq-next{border-left:5px solid var(--inq-teal)}.inq-message{color:#744019;font-size:14px;min-height:1.4em;margin:6px 0}.inq-message:empty{display:none}
+.inq-record label,.inq-reflection label,.inq-next label,.inq-evidence label{display:block;font-weight:600;margin:12px 0}.s2 textarea,.inq-evidence textarea{display:block;box-sizing:border-box;width:100%;margin:8px 0;padding:12px;border:1px solid #afc1d6;border-radius:10px;line-height:1.65;resize:vertical;background:white;color:var(--inq-ink);font:inherit}
+.s2 textarea:focus,.inq-evidence textarea:focus{outline:3px solid #99baf799;outline-offset:1px}
+.inq-run{padding:14px;border-bottom:1px solid var(--inq-line);font-size:14px}.inq-run p{margin:7px 0}.inq-pick{display:flex;align-items:center;gap:10px}.inq-pick input{width:22px;height:22px;flex-shrink:0}
+.inq-history,.inq-evidence,.inq-root,.inq-inference{border:1px solid var(--inq-line);padding:14px;border-radius:12px;margin:12px 0;background:white}summary{cursor:pointer;font-weight:600;min-height:28px}
+.inq-compare-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.inq-compare-columns section{min-width:0;padding:8px;border:1px solid var(--inq-line);border-radius:12px}.inq-compare-columns canvas{min-height:230px}
+.inq-readings{display:flex;gap:8px;flex-wrap:wrap;font-size:12px}.inq-readings span{padding:4px;background:white;border-radius:6px}.inq-clock{font-variant-numeric:tabular-nums;font-weight:700;color:var(--inq-blue)}.inq-controlled{color:var(--inq-teal);font-weight:600}
+.inq-aspects{display:flex;gap:8px;flex-wrap:wrap}.inq-aspects span{padding:6px 12px;border-radius:20px;background:#e8edf2;color:#5f7081}.inq-aspects .written{background:#d8f0e8;color:#155340}
+.inq-evidence{display:block;flex-basis:100%;width:100%}.inq-evidence input[type=number]{width:130px;padding:10px}.inq-growth ol{padding-left:22px;border-left:3px solid #a7c4e8}.inq-growth li{padding:6px 0}.inq-source,.inq-time-note{font-size:12px;color:#586c80}
+body.teacher #questions>li{flex-wrap:wrap}.s2-read{font-variant-numeric:tabular-nums}.s2-note{color:#586c80;line-height:1.7;font-size:13px}button:focus-visible,summary:focus-visible{outline:3px solid #f6b94c;outline-offset:2px}
+@media(min-width:1000px){.s2:not(.compact):not(.s2-assistant)>.inq-predict{max-width:850px}.s2:not(.compact):not(.s2-assistant)>.s2-simpart>.s2-stage{max-width:100%}.inq-reflection{display:grid;grid-template-columns:1fr 1fr;gap:10px 18px}.inq-reflection>h3,.inq-reflection>p,.inq-reflection>.inq-aspects,.inq-reflection>.inq-history{grid-column:1/-1}}
+@media(max-width:700px){.inq-compare-columns{grid-template-columns:1fr}.inq-record,.inq-predict,.inq-reflection,.inq-next,.inq-comparison{padding:12px}.s2-tab{flex:1;padding:8px;font-size:13px}.s2-canvas{min-height:240px}}
+/* 明るい操作パネルと、暗い描画キャンバスで文字色を分ける。 */
+.s2{--s2-panel:#eef3fa;--s2-line:#d5dfec;--s2-ink:#18334c;--s2-muted:#536a83;--s2-accent:#2356b1;--s2-warn:#975c00;color:var(--s2-ink)}
+.s2 .s2-btn.primary,.s2 .s2-tab[aria-pressed=true]{color:white;background:var(--inq-blue)}
+.s2 .inq-pick{display:flex!important;flex-direction:row!important;justify-content:flex-start!important;align-items:center!important;text-align:left!important}
+.s2 .inq-pick input{width:22px!important;margin:0!important}.s2 .inq-run{text-align:left}
+.inq-record h3,.inq-results h3,.inq-reflection h3{color:#18334c}.s2-stage{grid-template-columns:minmax(0,1fr) 135px}.s2-bars{width:100%;height:320px}
+.s2 .s2-formula{overflow-wrap:anywhere}.inq-time-note{grid-column:1/-1}
+@media(min-width:1100px){
+ body.student .s2:not(.compact):not(.s2-assistant){display:grid;grid-template-columns:minmax(0,1fr) minmax(350px,.94fr);gap:16px;align-items:start}
+ body.student .s2:not(.compact):not(.s2-assistant)>.s2-tabs{grid-column:1/-1;top:60px}
+ body.student .s2:not(.compact):not(.s2-assistant)>.s2-simpart{grid-column:1;grid-row:2;position:sticky;top:125px;max-height:calc(100vh - 145px);overflow:auto;margin:0;padding-right:4px}
+ body.student .s2:not(.compact):not(.s2-assistant)>.inq-predict,body.student .s2:not(.compact):not(.s2-assistant)>.inq-results{grid-column:2;grid-row:2;margin:0;min-width:0}
+ body.student .inq-reflection{display:block}body.student .inq-reflection label{margin-bottom:18px}
+ body.student .inq-compare-columns{grid-template-columns:1fr}.s2-stage{grid-template-columns:1fr}.s2-bars{height:130px}
+ body.student .s2 .s2-canvas{height:300px;min-height:250px}body.student .s2 .s2-ctrls{grid-template-columns:1fr;padding:10px;gap:8px}
+ body.student .s2 .s2-ctrl{font-size:13px}.inq-record{padding:12px}.inq-record textarea{min-height:70px}
+}
+@media(max-width:700px){.s2-stage{grid-template-columns:1fr}.s2-bars{height:140px}.inq-evidence .s2-btns{align-items:stretch}}
+.inq-compare-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}.inq-compare-table th,.inq-compare-table td{border:1px solid #cbd8e6;padding:6px;text-align:left;font-variant-numeric:tabular-nums}
+.inq-model-note{font-size:12px;color:#536a83;line-height:1.65}
+.s2-btn:hover:hover{background:#e4edfb;color:#17345d}
+.s2-btn.primary:hover{background:#163f91;color:white}
+/* 比較中は2件を主役にし、1つの実験を重複して見せない。実験タブで戻れる。 */
+.s2.inq-is-comparing>.s2-simpart{display:none!important}
+@media(min-width:1100px){
+ body.student .s2.inq-is-comparing>.inq-results{grid-column:1/-1}
+ body.student .s2.inq-is-comparing .inq-compare-columns{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.student .s2.inq-is-comparing .inq-comparison .s2-canvas{height:420px}
+ body.student .s2.inq-is-comparing .inq-reflection{display:grid;grid-template-columns:1fr 1fr}
+}
