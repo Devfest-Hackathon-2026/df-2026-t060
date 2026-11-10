@@ -1,0 +1,28 @@
+// 自動生成。元のJSONを編集し、このスクリプトで更新する。
+export default [
+  {
+    "title": "太陽のまわりを回る惑星(水星〜火星)",
+    "request": "中3の地球と宇宙で、惑星が太陽のまわりを公転するようすを見せたい",
+    "config": {
+      "system": "solar",
+      "curriculum": { "grade": "中3", "unit": "地球と宇宙(太陽系と惑星)" },
+      "params": { "set": "inner", "sunMass": 1, "mutual": "on" },
+      "render": "3d",
+      "controls": ["set", "sunMass"],
+      "speed": 0.5
+    }
+  },
+  {
+    "title": "外側の惑星ほど公転周期が長い(ケプラーの法則)",
+    "request": "中3の地球と宇宙で、太陽から遠い惑星ほど公転周期が長いことを確かめたい",
+    "config": {
+      "system": "solar",
+      "curriculum": { "grade": "中3", "unit": "地球と宇宙(太陽系と惑星)" },
+      "params": { "set": "outer", "sunMass": 1, "mutual": "on" },
+      "render": "2d",
+      "controls": ["set", "sunMass", "mutual"],
+      "speed": 10
+    }
+  }
+]
+;

@@ -1,0 +1,11 @@
+// 自動生成。元のJSONを編集し、このスクリプトで更新する。
+export default {
+  "x-label": "音と空気のふるえ（縦波）", "x-measures": "ふるえの回数と音の高さ、ふれ幅と音の大きさの関係",
+  "x-units": [{"grade":"小5","unit":"音の性質（探究）"},{"grade":"中1","unit":"光と音"}],
+  "render":["2d"], "solvers":["rk4"],
+  "params":{"type":"object","additionalProperties":false,"required":["f","A"],"properties":{
+    "f":{"type":"number","minimum":110,"maximum":660,"x-default":220,"x-step":10,"x-label":"1秒にふるえる回数","x-unit":"Hz"},
+    "A":{"type":"number","minimum":5,"maximum":60,"x-default":30,"x-step":1,"x-label":"音の大きさの設定","x-unit":""}
+  }}
+}
+;

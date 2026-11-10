@@ -1,0 +1,79 @@
+{
+  "x-label": "太陽系の惑星の運動(多体・3次元)",
+  "x-measures": "惑星の公転周期と、太陽からのきょりの関係(ケプラーの法則)",
+  "x-units": [
+    {
+      "grade": "中3",
+      "unit": "地球と宇宙(太陽系と惑星)"
+    }
+  ],
+  "render": [
+    "2d",
+    "3d"
+  ],
+  "solvers": [
+    "velocityVerlet",
+    "rk4"
+  ],
+  "params": {
+    "type": "object",
+    "required": [
+      "set",
+      "sunMass",
+      "mutual"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "set": {
+        "type": "string",
+        "enum": [
+          "inner",
+          "outer",
+          "all"
+        ],
+        "x-options": {
+          "inner": "水星・金星・地球・火星",
+          "outer": "木星・土星・天王星・海王星",
+          "all": "8惑星すべて"
+        },
+        "x-aliases": [
+          "惑星",
+          "どの惑星"
+        ],
+        "x-label": "動かす惑星",
+        "x-default": "inner"
+      },
+      "sunMass": {
+        "type": "number",
+        "minimum": 0.7,
+        "maximum": 2,
+        "x-aliases": [
+          "太陽の質量",
+          "太陽の重さ"
+        ],
+        "x-label": "太陽の質量(本当の何倍か)",
+        "x-label-e": "太陽の重さ(本当の何倍か)",
+        "x-unit": "倍",
+        "x-step": 0.05,
+        "x-default": 1
+      },
+      "mutual": {
+        "type": "string",
+        "enum": [
+          "on",
+          "off"
+        ],
+        "x-options": {
+          "on": "惑星どうしも引き合う",
+          "off": "太陽とだけ引き合う"
+        },
+        "x-aliases": [
+          "惑星どうし",
+          "引き合う"
+        ],
+        "x-label": "惑星どうしの万有引力",
+        "x-default": "on"
+      }
+    }
+  }
+}
