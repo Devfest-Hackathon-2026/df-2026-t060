@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>保存したAIを消す | クラスで育つ教材</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="student">
+  <header class="appbar">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">教</span><span class="brand-text"><span class="brand-name">クラスで育つ教材</span><span class="brand-sub">この端末に保存したAIを消す</span></span></a>
+  </header>
+  <main class="sgrid">
+    <section class="card">
+      <h2>この端末に保存したAI</h2>
+      <p class="small" id="where"></p>
+      <p id="usage" class="small"></p>
+      <ul id="models" class="list"></ul>
+      <div class="row wrap">
+        <button type="button" id="deleteAll" class="primary">保存したAIを全部消す</button>
+      </div>
+      <p id="msg" class="msg" role="status"></p>
+      <p class="small">消しても、クラスに入った記録や先生からの返事は残ります。次に児童用ページを開くと、AIをもう一度ダウンロードします。</p>
+    </section>
+  </main>
+  <script type="module">
+    import { MODELS } from './js/student-ai.js';
+    const WEBLLM_URL = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.86/+esm';
+    const $ = (id) => document.getElementById(id);
+    $('where').textContent = `ブラウザは、サイトのアドレスごとにAIを保存します。このページで消せるのは「${location.origin}」に保存したものだけです。`;
+
+    async function usage() {
+      try {
+        const e = await navigator.storage.estimate();
+        $('usage').textContent = `このサイトが使っている容量:約${Math.round((e.usage ?? 0) / 1e6).toLocaleString()}MB`;
+      } catch { $('usage').textContent = ''; }
+    }
+
+    async function render() {
+      await usage();
+      const webllm = await import(WEBLLM_URL);
+      const list = $('models');
+      list.replaceChildren();
+      let any = false;
+      for (const m of MODELS) {
+        let has = false;
+        try { has = await webllm.hasModelInCache(m.id); } catch { /* わからなければ、ないものとする */ }
+        if (!has) continue;
+        any = true;
+        const li = document.createElement('li');
+        const name = Object.assign(document.createElement('span'), { className: 'text', textContent: `${m.label}(約${m.mb}MB)` });
+        const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'ghost small', textContent: '消す' });
+        btn.onclick = async () => {
+          btn.disabled = true;
+          await webllm.deleteModelAllInfoInCache(m.id).catch(() => {});
+          $('msg').textContent = `${m.label}を消しました`;
+          render();
+        };
+        li.append(name, btn);
+        list.append(li);
+      }
+      if (!any) list.innerHTML = '<li class="empty">このサイトには、AIは保存されていません</li>';
+      $('deleteAll').disabled = !any;
+    }
+
+    $('deleteAll').onclick = async () => {
+      $('deleteAll').disabled = true;
+      $('msg').textContent = '消しています…';
+      const webllm = await import(WEBLLM_URL);
+      for (const m of MODELS) await webllm.deleteModelAllInfoInCache(m.id).catch(() => {});
+      // WebLLM が使う保存場所の残りも消す(このサイトのものだけ)
+      try { for (const k of await caches.keys()) if (k.startsWith('webllm')) await caches.delete(k); } catch { /* なくてもよい */ }
+      $('msg').textContent = '保存したAIを全部消しました';
+      render();
+    };
+
+    render().catch((e) => { $('msg').textContent = '調べられませんでした:' + e.message; });
+  </script>
+</body>
+</html>

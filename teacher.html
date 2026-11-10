@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>先生画面 | クラスで育つ教材</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/inquiry.css">
+  <link rel="stylesheet" href="css/hybrid-lab.css">
+  <link rel="stylesheet" href="css/studio.css">
+</head>
+<body class="teacher">
+  <header class="appbar">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">教</span><span class="brand-text"><span class="brand-name">クラスで育つ教材</span><span class="brand-sub">先生画面</span></span></a>
+    <div class="appbar-right"><a href="words.html" class="pill" title="児童の実験助手がわからなかった言い方を、辞書に足す">ことばの辞書</a><span id="aiStatus" class="pill"></span><span id="mode" class="badge"></span>
+      <span id="account" class="account" hidden><span id="accountName" class="small"></span><button id="logout" type="button" class="ghost small">ログアウト</button></span></div>
+  </header>
+
+  <section id="aiPanel" class="card narrowcard" hidden>
+    <h2>AIのつなぎ先</h2>
+    <p class="small">教材の案づくり・質問のまとめに使うAI(Gemma)を、どこで動かすかを選びます。このブラウザに覚えます。</p>
+    <div class="stack">
+      <label class="radio"><input type="radio" name="apiKind" id="apiLocal"> 先生PC(この PC の Ollama。<code>server</code> で <code>npm start</code>)</label>
+      <label class="radio"><input type="radio" name="apiKind" id="apiCloud"> Cloud Run(クラウドのAI。先生PCが要らない。最初は起こすのに数分かかります)</label>
+      <label>Cloud Run のアドレス <input id="apiUrl" placeholder="https://kyozai-ai-xxxxx.a.run.app" autocomplete="off"></label>
+      <p class="small">※ Cloud Run を選ぶと、児童の質問の文が Google Cloud 上のAIに送られます(保存や学習には使いません)。学校のきまりを確かめてから使ってください。</p>
+      <p><button id="apiTest" type="button" class="ghost">つなぎ先を調べる</button> <button id="apiSave" type="button">この場所を使う</button> <button id="aiPanelClose" type="button" class="ghost">閉じる</button></p>
+      <p id="apiMsg" class="msg" role="status"></p>
+    </div>
+    <div id="modelBox" class="modelbox" hidden>
+      <h3>AIのモデル(先生PC)</h3>
+      <p id="modelState" class="small" role="status"></p>
+      <progress id="modelBar" max="100" value="0" hidden></progress>
+      <p><button id="modelGet" type="button">Gemma 4 12B をダウンロード</button></p>
+      <p class="small">ダウンロードずみなら、何もしません。12B がダウンロードできないときは、小さい Gemma 4 E4B をダウンロードして使います(あとで 12B を入れたら、もう一度このボタンで 12B に戻せます)。</p>
+    </div>
+  </section>
+
+  <section id="login" class="card narrowcard" hidden>
+    <h2>先生のログイン</h2>
+    <p>先生は Google アカウントでログインします。クラスがそのアカウントにつくので、別のパソコンやブラウザでも、同じクラスを開けます。</p>
+    <p id="loginLegacy" class="small" hidden>前の作りで(ログインなしで)作ったクラスがこのブラウザにあります。<b>Google でログインすると、そのクラスをそのまま引き継げます</b>(別のアカウントですでに使っているときは、引き継げません)。</p>
+    <button id="googleLogin" type="button" class="block">Google でログイン</button>
+    <p id="loginMsg" class="msg" role="alert"></p>
+    <p class="small">児童は、これまでどおり名前もメールも使いません(クラスコードと出席番号だけ)。</p>
+  </section>
+
+  <section id="setup" class="card narrowcard" hidden>
+    <div id="myClassesBox" hidden>
+      <h2>自分のクラス</h2>
+      <ul id="myClasses" class="list"></ul>
+      <hr>
+    </div>
+    <h2>クラスをつくる</h2>
+    <form id="setupForm" class="stack">
+      <label>クラス名 <input id="className" placeholder="例：5年2組 理科" required maxlength="40"></label>
+      <label>学年(小5〜中3。AIがこの学年に合わせて案を作り、児童のAIもこの学年に合わせて言いかえます)
+        <select id="grade">
+          <option value="5" selected>小5</option><option value="6">小6</option>
+          <option value="7">中1</option><option value="8">中2</option><option value="9">中3</option>
+        </select>
+      </label>
+      <button>つくる</button>
+    </form>
+    <p id="setupMsg" class="msg"></p>
+  </section>
+
+  <main id="app" class="tgrid" hidden>
+    <section class="classstrip">
+      <div class="classinfo">
+        <h1 id="classTitle"></h1>
+        <p class="small">児童用ページ：<a id="studentUrl" target="_blank" rel="noopener"></a></p>
+        <p id="studentUrlNote" class="small" hidden></p>
+        <p id="bleStatus" class="small" role="status" hidden></p>
+      </div>
+      <div class="codebox" aria-label="クラスコード">
+        <span class="codelabel">クラスコード</span>
+        <span id="code" class="code"></span>
+      </div>
+      <button id="resetClass" class="ghost small">別のクラスにする</button>
+    </section>
+
+    <div class="colq stackcol">
+      <section class="card sec-q">
+        <div class="cardhead">
+          <h2><span class="stepno">1</span>届いた質問</h2>
+          <span id="qCount" class="count"></span>
+        </div>
+        <label>今日の授業(単元・めあて。AIが質問との関係の強さを決めるのに使います)
+          <input id="lessonTopic" maxlength="200" placeholder="例:小5 振り子の運動 ─ 1往復する時間は何によって変わるか">
+        </label>
+        <ul id="questions" class="list qlist"></ul>
+        <div class="aibar">
+          <button id="aiGroup" type="button" class="ai block">関係の強さ(上・中・下)を分けて、まとめる</button>
+          <span id="aiMsg" class="small"></span>
+        </div>
+        <p class="small">関係の強さが「上」「中」の質問だけをまとめます。重なる質問・大事な質問は、答えと教材の案(シミュレーションつき)にして、クラスに配信します。「下」の質問や、授業で説明しきれなかった質問は、「個別に答える」で、その児童だけに返せます。</p>
+        <div id="groups" class="groups"></div>
+      </section>
+
+      <section class="card sec-r" id="replyCard" hidden>
+        <div class="cardhead">
+          <h2><span class="stepno">3</span>個別に答える</h2>
+          <button type="button" id="replyClose" class="ghost small">とじる</button>
+        </div>
+        <div id="replyQuestion" class="replyq"></div>
+        <div class="row wrap">
+          <button type="button" id="replyAI" class="ai">答えの案を書いてもらう</button>
+          <span id="replyMsg" class="small"></span>
+        </div>
+        <div id="replyInfo" class="draftinfo" hidden></div>
+        <label>その児童に返す答え(先生が確かめて直してください)
+          <textarea id="replyText" rows="4" maxlength="400"></textarea>
+        </label>
+        <div id="replySimBox" class="stack" hidden>
+          <label class="inline"><span><input type="checkbox" id="replyWithSim" checked> シミュレーションもつけて返す</span></label>
+          <div id="replySim"></div>
+          <div id="replyFacts" class="facts"></div>
+        </div>
+        <div class="row end"><button type="button" id="replySend" class="primary">この児童に返す</button></div>
+      </section>
+    </div>
+
+    <section class="card colm sec-m" id="matCard">
+      <div class="cardhead">
+        <h2><span class="stepno">2</span>教材をつくって配信</h2>
+      </div>
+      <div class="row wrap">
+        <button id="openHybridLab" type="button" class="ghost">実験工房を開く</button>
+        <span class="small">宇宙・力学・電気・波と光と音・流体の実験を、その場で試して教材に。</span>
+      </div>
+      <form id="sampleForm" class="samplebar">
+        <span class="small"><b>要望から教材をつくる</b>(シミュレーション+題名・導入・授業の流れ・確認問題)</span>
+        <select id="sampleSim" aria-label="シミュレーションの種類"><option value="">工房の実験からおまかせ</option></select>
+        <input id="sampleTopic" maxlength="100" placeholder="例：空気抵抗を無視して投げた球の角度と飛距離を比べたい" aria-label="作りたい教材の要望">
+        <button type="submit" class="ai small">教材をつくる</button>
+        <span id="sampleMsg" class="small"></span>
+      </form>
+      <div id="draftInfo" class="draftinfo" hidden></div>
+      <form id="matForm" class="stack">
+        <div class="formgrid">
+          <div class="stack">
+            <label>題名 <input name="title" required maxlength="60"></label>
+            <label>導入・説明 <textarea name="explanation" rows="3" maxlength="1000"></textarea></label>
+            <fieldset class="lessonedit">
+              <legend>授業の流れ(児童に見えます。空らんの所は出ません)</legend>
+              <label><span class="lstep q">はてな</span>みんなで考える問い <input name="lQuestion" maxlength="80"></label>
+              <label><span class="lstep predict">予想</span>予想しよう <input name="lPredict" maxlength="120"></label>
+              <label><span class="lstep check">確かめ</span>確かめよう <textarea name="lCheck" rows="2" maxlength="200"></textarea></label>
+              <label><span class="lstep result">結果</span>結果(児童は「見る」を押すと出ます) <textarea name="lResult" rows="2" maxlength="200"></textarea></label>
+              <label><span class="lstep summary">まとめ</span>わかったこと(児童は「見る」を押すと出ます) <textarea name="lSummary" rows="2" maxlength="200"></textarea></label>
+            </fieldset>
+            <fieldset>
+              <legend>確認問題（任意）</legend>
+              <label>問題 <input name="q" maxlength="200"></label>
+              <div class="choices">
+                <label>選択肢1 <input name="c1" maxlength="60"></label>
+                <label>選択肢2 <input name="c2" maxlength="60"></label>
+                <label>選択肢3 <input name="c3" maxlength="60"></label>
+              </div>
+              <label>正解 <select name="answer"><option value="0">選択肢1</option><option value="1">選択肢2</option><option value="2">選択肢3</option></select></label>
+            </fieldset>
+          </div>
+          <div class="stack simeditor" id="simEditor"></div>
+        </div>
+        <div class="previewbox">
+          <div class="previewhead">児童に見えるシミュレーション<span class="small">ここで動かして確かめられます</span></div>
+          <div id="simPreview"></div>
+          <div id="simFacts" class="facts" hidden></div>
+        </div>
+        <p id="draftSaveStatus" class="small" role="status"></p>
+        <div class="row end"><p id="matMsg" class="msg" role="status"></p><button class="primary" type="submit">配信する</button></div>
+      </form>
+    </section>
+
+    <section class="card colfull">
+      <div class="cardhead"><h2>配信済みの教材</h2></div>
+      <ul id="materials" class="list"></ul>
+    </section>
+  </main>
+
+  <dialog id="hybridLabDialog" class="lab-dialog" aria-labelledby="hybridLabTitle">
+    <div class="lab-dialog-bar">
+      <h2 id="hybridLabTitle">実験工房</h2>
+      <button id="closeHybridLab" class="lab-quiet" type="button">閉じる</button>
+    </div>
+    <div id="hybridLabHost"></div>
+  </dialog>
+  <script src="offline-register.js" defer></script>
+  <script type="module" src="js/teacher.js"></script>
+</body>
+</html>

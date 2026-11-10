@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f6fc">
+  <title>クラスで育つ教材</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/entry.css">
+  <script src="offline-register.js" defer></script>
+</head>
+<body>
+  <header class="entry-header">
+    <a class="entry-brand" href="index.html"><img src="icon.svg" width="36" height="36" alt="">クラスで育つ教材</a>
+    <a class="entry-nav" href="demo.html?demo">デモを試す</a>
+  </header>
+  <main class="entry-main">
+    <section class="entry-hero">
+      <div>
+        <p class="entry-kicker">理科の探究教室</p>
+        <h1>ひとりの問いが、<br>次の実験になる。</h1>
+        <p class="entry-lead">予想して、実験で確かめる。児童が見つけた問いと根拠を先生が確認し、クラスで試せる教材にします。</p>
+        <a class="entry-button" href="demo.html?demo">デモを開く <span aria-hidden="true">→</span></a>
+      </div>
+      <svg class="entry-orbit" viewBox="0 0 480 350" aria-hidden="true" focusable="false">
+        <defs>
+          <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#d1e0f5"/></pattern>
+          <radialGradient id="earth" cx=".32" cy=".25" r=".8"><stop stop-color="#5c9bff"/><stop offset="1" stop-color="#2252a7"/></radialGradient>
+          <clipPath id="earth-disc"><circle cx="248" cy="171" r="57"/></clipPath>
+        </defs>
+        <rect x="16" y="16" width="448" height="318" rx="24" fill="#edf4ff"/>
+        <rect x="16" y="16" width="448" height="318" rx="24" fill="url(#grid)"/>
+        <path d="M52 171H432M248 42V309" stroke="#b9cfee" stroke-dasharray="4 7"/>
+        <g fill="none" transform="rotate(-19 248 171)">
+          <ellipse cx="248" cy="171" rx="154" ry="79" stroke="#94b6e9" stroke-width="2" stroke-dasharray="5 8"/>
+          <ellipse cx="248" cy="171" rx="116" ry="66" stroke="#4380de" stroke-width="2"/>
+          <circle cx="331" cy="124" r="9" fill="#ecad52" stroke="#fff" stroke-width="3"/>
+          <circle cx="124" cy="217" r="7" fill="#279980" stroke="#fff" stroke-width="3"/>
+        </g>
+        <circle cx="248" cy="171" r="57" fill="url(#earth)"/>
+        <path d="M199 144l29-18 22 10 5 18-26 12-6 24-17 3-12-16zm82 1 29 15 1 28-27 26-15-12 8-17-12-16z" fill="#84cfc1" clip-path="url(#earth-disc)"/>
+        <circle cx="248" cy="171" r="57" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="2"/>
+        <path d="M56 292h52m-52 8h28m290-249h53m-28 8h28" stroke="#a1bce3" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </section>
+    <section class="entry-section" aria-labelledby="classroom">
+      <h2 id="classroom">授業で使う</h2>
+      <div class="entry-grid">
+        <a class="entry-card" href="student.html"><strong>児童画面</strong><span>クラスコードで入り、実験する</span><b aria-hidden="true">→</b></a>
+        <a class="entry-card" href="teacher.html"><strong>先生画面</strong><span>クラスを開き、教材や質問を確認する</span><b aria-hidden="true">→</b></a>
+        <a class="entry-card" href="hybrid-lab.html"><strong>実験工房</strong><span>11の実験を選んで、条件と結果を比べる</span><b aria-hidden="true">→</b></a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
