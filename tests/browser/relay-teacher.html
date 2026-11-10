@@ -1,0 +1,97 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>先生の画面(Bluetooth 教室モード)のテスト</title>
+<!-- 本物のブラウザで、先生の画面の Bluetooth 教室モード(?relay)を確かめる(node tools/browser-check.mjs relay-teacher)。
+     名前が relay- で始まるので、tools/browser-check.mjs が、本物のサーバー(server/index.js)を起動して、/relay/ と /api/ をつなぐ。
+     児童の端末は、中継アプリのかわりに、サーバーの Bluetooth の口(TCP)から質問を送る(/__relay/ask)。 -->
+<link rel="stylesheet" href="/css/style.css">
+<pre id="result"></pre>
+<div id="stage"></div>
+<script type="module">
+const checks = [];
+// 途中で止まったときに、どこまで進んだかがわかるよう、1つ確かめるたびに結果欄へ書く(最後に、全部の結果で書きかえる)
+const check = (n, ok, d = '') => { checks.push({ name: n, ok: !!ok, detail: d }); document.getElementById('result').textContent = JSON.stringify({ ok: false, partial: true, checks }); };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const $ = (id) => document.getElementById(id);
+// SSE(終わらない通信)があると、テスト用の仮想の時間が進まない。そこで、EventSource のかわりに、
+// 「つなぐたびに、最初に届く知らせ(materials・questions・students)だけ読んで切る」ものを、一定の間隔でくり返す偽物を使う。
+// 読む先は、本物のサーバーの SSE の口(常時つなぎっぱなしの動きは tests/relay-server.test.js で確かめてある)。
+window.EventSource = class PollingEventSource {
+  constructor(url) { this.url = url; this.handlers = {}; this.closed = false; this.loop(); }
+  addEventListener(kind, cb) { (this.handlers[kind] ??= []).push(cb); }
+  close() { this.closed = true; }
+  async loop() {
+    while (!this.closed) {
+      const ctrl = new AbortController();
+      try {
+        const res = await fetch(this.url, { signal: ctrl.signal });
+        const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '', got = 0;
+        while (got < 3 && !this.closed) {
+          const { value, done } = await reader.read(); if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i; while ((i = buf.indexOf('\n\n')) >= 0) {
+            const block = buf.slice(0, i); buf = buf.slice(i + 2);
+            const ev = /^event: (.+)$/m.exec(block), d = /^data: (.+)$/m.exec(block);
+            if (ev && d) { got++; for (const cb of this.handlers[ev[1]] ?? []) cb({ data: d[1] }); }
+          }
+        }
+      } catch { /* つぎの回で、もう一度 */ }
+      ctrl.abort();
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+};
+const errors = [];
+addEventListener('error', (e) => errors.push(String(e.message)));
+addEventListener('unhandledrejection', (e) => errors.push(String(e.reason?.message ?? e.reason)));
+try {
+  localStorage.clear();
+  history.replaceState(null, '', `${location.pathname}?relay`);
+  const html = await (await fetch('/teacher.html')).text();
+  const body = new DOMParser().parseFromString(html, 'text/html').body;
+  $('stage').replaceChildren(...[...body.childNodes].filter((n) => n.tagName !== 'SCRIPT'));
+  await import('/js/teacher.js');
+  await wait(500);
+
+  check('ログインの画面は出ない(先生PC自身なので、Google ログインはいらない)', $('login').hidden);
+  check('モードの表示は「Bluetooth教室」', /Bluetooth教室/.test($('mode').textContent), $('mode').textContent);
+  check('アカウントとログアウトは出ない', $('account').hidden);
+  check('クラスをつくる画面が出る(まだクラスがない)', !$('setup').hidden && $('myClassesBox').hidden);
+
+  // クラスをつくる
+  $('className').value = 'Bluetooth 5年3組'; $('grade').value = '6';
+  $('setupForm').dispatchEvent(new Event('submit', { cancelable: true }));
+  await wait(800);
+  const code = $('code').textContent;
+  check('クラスができて、クラスコードが出る(6文字)', !$('app').hidden && /^[A-HJ-NP-Z2-9]{6}$/.test(code), code);
+  check('クラス名と学年が出る', /Bluetooth 5年3組.*小6/.test($('classTitle').textContent), $('classTitle').textContent);
+  // 児童の Chromebook が開くのは、公開の画面(https)。先生PCの localhost は開けない。Web Bluetooth も https でだけ使える
+  check('児童用ページは、この版と同じ配信元で、ble(Bluetooth)の印とクラスコードがつく', new URL($('studentUrl').href).origin === location.origin && /[?&]ble(=|&|$)/.test($('studentUrl').textContent) && $('studentUrl').textContent.includes(`code=${code}`), $('studentUrl').textContent);
+  check('Bluetooth でつながっている児童の端末の数(0台)が出る', !$('bleStatus').hidden && /0 台/.test($('bleStatus').textContent), $('bleStatus').textContent);
+  localStorage.setItem('kyozai-teacher', localStorage.getItem('kyozai-teacher')); // 覚えている
+
+  // 児童の端末(Bluetooth)が質問を送る → 先生の画面に出る
+  const ask = await (await fetch(`/__relay/ask?code=${code}&text=${encodeURIComponent('Bluetoothから届いた質問です')}`)).json();
+  check('児童の端末から、質問が先生PCに受けとられた', ask.ok === true, JSON.stringify(ask));
+  await wait(800);
+  check('先生の画面の「届いた質問」に、質問が出る', /Bluetoothから届いた質問です/.test($('questions').textContent) && /未対応 1件/.test($('qCount').textContent), `${$('qCount').textContent} / ${$('questions').textContent.slice(0, 60)}`);
+
+  // 教材を配信する(先生の画面のフォーム)
+  const f = $('matForm').elements;
+  f.title.value = 'Bluetoothで配る教材'; f.explanation.value = '説明のぶん';
+  $('matForm').dispatchEvent(new Event('submit', { cancelable: true }));
+  await wait(800);
+  check('配信した教材が、配信ずみの一覧に出る', /Bluetoothで配る教材/.test($('materials').textContent), $('materials').textContent.slice(0, 80));
+  const mats = await new Promise((ok) => { const es = new EventSource(`/relay/class/${code}/stream`); es.addEventListener('materials', (e) => { es.close(); ok(JSON.parse(e.data)); }); });
+  check('先生PCの教室のデータにも、その教材が入っている', mats.some((m) => m.title === 'Bluetoothで配る教材'));
+
+  // AIサーバーの呼び出しは、ログインなしで通る(先生PC自身)。質問が0件なので、中身のまちがいで 400
+  const g = await fetch('/api/group', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, questions: [] }) });
+  check('AIサーバー:Bluetooth 教室のクラスは、ログインなしで認証を通る(質問0件で 400)', g.status === 400, String(g.status));
+  check('AIのつなぎ先は、この画面を配っている先生PC(Cloud Run の設定は開かない)', (() => { $('aiStatus').click(); return $('aiPanel').hidden; })());
+
+  // ページを開きなおす(再読みこみ):覚えていたクラスが、そのまま開く
+  check('画面のエラー(例外)が出ていない', errors.length === 0, errors.join(' / '));
+} catch (e) { checks.push({ name: '例外', ok: false, detail: String(e.stack || e) }); }
+document.getElementById('result').textContent = JSON.stringify({ ok: checks.every((c) => c.ok), checks });
+</script>

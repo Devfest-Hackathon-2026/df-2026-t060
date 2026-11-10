@@ -1,0 +1,64 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WebGL が使えないときの簡易3D</title>
+<!-- WebGL を無効にして開く(tools/browser-check.mjs が、名前に nowebgl を含むページにそうする)。
+     WebGL が使えなくても、簡易3Dで 3D 表示が出て、ドラッグで回転できることを確かめる -->
+<link rel="stylesheet" href="/css/style.css">
+<body style="margin:8px"><div id="h"></div><pre id="result"></pre>
+<script type="module">
+import { mountSimulation } from '/js/sim2/ui/player.js';
+import { getSystem } from '/js/sim2/systems/index.js';
+const checks = []; const check = (n, ok, d = '') => checks.push({ name: n, ok: !!ok, detail: d });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const ptr = (c, type, id, x, y) => { const b = c.getBoundingClientRect(); c.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: id, pointerType: 'mouse', buttons: 1, clientX: b.left + x, clientY: b.top + y })); };
+const colored = (canvas) => { // 背景以外の色の点の数(地球の青・軌道の赤)
+  const cx = canvas.getContext('2d'); const px = cx.getImageData(0, 0, canvas.width, canvas.height).data; let n = 0;
+  for (let i = 0; i < px.length; i += 4) if (Math.abs(px[i] - 15) + Math.abs(px[i + 1] - 21) + Math.abs(px[i + 2] - 34) > 120) n++;
+  return n;
+};
+try {
+  const probe = document.createElement('canvas');
+  check('この環境では WebGL が使えない(テストの前提)', !(probe.getContext('webgl2') || probe.getContext('webgl')));
+
+  const h = document.getElementById('h');
+  const sim = mountSimulation(h, { ...getSystem('orbit').examples[1].config, render: '3d', view: { mode: 'explore' } });
+  await wait(2500);
+  const cs = [...h.querySelectorAll('canvas.s2-canvas')];
+  check('canvas が2つ(2D と 3D)', cs.length === 2, String(cs.length));
+  check('3D の側が表示されている(2D にもどっていない)', cs[0].hidden && !cs[1].hidden, cs.map((c) => c.hidden).join());
+  check('警告(赤・黄)は出ず、「簡易3D表示」の知らせが出る', h.querySelector('.s2-warn').hidden && !h.querySelector('.s2-note').hidden && /簡易3D表示/.test(h.querySelector('.s2-note').textContent), h.querySelector('.s2-note').textContent);
+  const btn = [...h.querySelectorAll('.s2-btn')].map((b) => b.textContent);
+  check('「2D表示」ボタンがある(3D の状態)', btn.includes('2D表示'), btn.join());
+
+  // コマ送りで動き、簡易3Dの絵が描かれる
+  const step = [...h.querySelectorAll('.s2-btn')].find((b) => b.textContent === 'コマ送り');
+  for (let i = 0; i < 40; i++) step.click();
+  await wait(400);
+  const c3 = h.querySelectorAll('canvas.s2-canvas')[1];
+  const before = colored(c3);
+  check('絵が描かれている(地球・衛星・軌道)', before > 300, `${before} 点`);
+
+  // ドラッグで回転 → 絵が変わる
+  const snap = () => c3.toDataURL();
+  const s0 = snap();
+  ptr(c3, 'pointerdown', 1, 300, 150); ptr(c3, 'pointermove', 1, 400, 120); ptr(c3, 'pointerup', 1, 400, 120);
+  step.click(); await wait(300);
+  check('ドラッグで回転すると絵が変わる', snap() !== s0);
+  // ホイールで拡大・縮小
+  const s1 = snap();
+  c3.dispatchEvent(new WheelEvent('wheel', { deltaY: -300, bubbles: true, cancelable: true }));
+  step.click(); await wait(300);
+  check('ホイールで拡大すると絵が変わる', snap() !== s1);
+
+  // 2D ⇔ 3D の切りかえ
+  [...h.querySelectorAll('.s2-btn')].find((b) => b.textContent === '2D表示').click();
+  await wait(300);
+  const cs2 = [...h.querySelectorAll('canvas.s2-canvas')];
+  check('2D に切りかえられる', !cs2[0].hidden && cs2[1].hidden);
+  [...h.querySelectorAll('.s2-btn')].find((b) => b.textContent === '3D表示').click();
+  await wait(1000);
+  const cs3 = [...h.querySelectorAll('canvas.s2-canvas')];
+  check('3D にもどせる(簡易3Dのまま)', cs3[0].hidden && !cs3[1].hidden);
+} catch (e) { checks.push({ name: '例外', ok: false, detail: String(e.stack || e) }); }
+document.getElementById('result').textContent = JSON.stringify({ ok: checks.every((c) => c.ok), checks });
+</script>

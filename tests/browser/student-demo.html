@@ -1,0 +1,49 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>児童の画面(ふつうの経路・デモ版)のテスト</title>
+<!-- Bluetooth 対応を足したあとも、ふつうの経路(Bluetooth なし)の児童の画面が、これまでどおり動くことを確かめる(node tools/browser-check.mjs student-demo)。
+     デモ版の通信層(同じブラウザの中だけ)を使う。 -->
+<link rel="stylesheet" href="/css/style.css">
+<pre id="result"></pre>
+<div id="stage"></div>
+<script type="module">
+const checks = []; const check = (n, ok, d = '') => checks.push({ name: n, ok: !!ok, detail: d });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const $ = (id) => document.getElementById(id);
+const errors = [];
+addEventListener('error', (e) => errors.push(String(e.message)));
+addEventListener('unhandledrejection', (e) => errors.push(String(e.reason?.message ?? e.reason)));
+try {
+  history.replaceState(null, '', `${location.pathname}?demo`);
+  localStorage.clear();
+  const { createTransport } = await import('/js/transport.js');
+  const t = await createTransport();
+  const code = await t.createClass('5年1組 理科', 5);
+  await t.publishMaterial(code, { title: 'ふりこのきまり', explanation: '1往復の時間をしらべよう', sim: null, quiz: [] });
+
+  const html = await (await fetch('/student.html')).text();
+  const body = new DOMParser().parseFromString(html, 'text/html').body;
+  $('stage').replaceChildren(...[...body.childNodes].filter((n) => n.tagName !== 'SCRIPT'));
+  await import('/js/student.js');
+  await wait(300);
+
+  // デモモードでは、Bluetooth の入口を出さない(友達のデモ画面を、そのまま見せる。Web Bluetooth が使える Chrome でも)
+  check('入る画面が出る。デモなので、Bluetooth の入口は出ない', !$('join').hidden && $('bleBox').hidden, `bleBox hidden=${$('bleBox').hidden}`);
+  check('「入る」ボタンは押せる', !$('joinForm').querySelector('button').disabled);
+  check('モードの表示は「デモモード」', /デモモード/.test($('mode').textContent), $('mode').textContent);
+  $('codeInput').value = code; $('seatInput').value = '5';
+  $('joinForm').dispatchEvent(new Event('submit', { cancelable: true }));
+  await wait(800);
+  check('入ると、クラスの画面が出る(クラス名と出席番号)', !$('app').hidden && /5年1組 理科.*5番/.test($('who').textContent), $('who').textContent);
+  check('先生が配信した教材が出る', /ふりこのきまり/.test($('materials').textContent), $('materials').textContent);
+  check('ネットの表示は、Bluetooth ではなく、ふつうのもの', /つながっています|オフライン/.test($('net').textContent) && !/Bluetooth/.test($('net').textContent), $('net').textContent);
+  const saved = JSON.parse(localStorage.getItem('kyozai-student'));
+  check('入ったクラスを覚える(Bluetooth の印 via はつかない)', saved.code === code && saved.seat === 5 && !('via' in saved), JSON.stringify(saved));
+  await t.publishMaterial(code, { title: 'あとから配信', explanation: 'x', sim: null, quiz: [] });
+  await wait(800);
+  check('あとから配信した教材も、すぐ出る', /あとから配信/.test($('materials').textContent));
+  check('まちがったクラスコードは断る', await (async () => { $('app').hidden = true; $('join').hidden = false; $('codeInput').value = 'ZZZZZZ'; $('joinForm').dispatchEvent(new Event('submit', { cancelable: true })); await wait(300); return /見つかりません/.test($('joinMsg').textContent); })());
+  check('画面のエラー(例外)が出ていない', errors.length === 0, errors.join(' / '));
+} catch (e) { checks.push({ name: '例外', ok: false, detail: String(e.stack || e) }); }
+document.getElementById('result').textContent = JSON.stringify({ ok: checks.every((c) => c.ok), checks });
+</script>

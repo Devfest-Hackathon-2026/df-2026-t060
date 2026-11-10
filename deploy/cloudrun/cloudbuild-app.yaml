@@ -1,0 +1,11 @@
+# AIサーバー(server/Dockerfile)を Cloud Build でビルドして、Artifact Registry に入れる。
+# リポジトリのいちばん上のフォルダで実行する:
+#   gcloud builds submit --config deploy/cloudrun/cloudbuild-app.yaml --substitutions _IMAGE=REGION-docker.pkg.dev/PROJECT/kyozai/app:latest .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "server/Dockerfile", "-t", "${_IMAGE}", "."]
+images:
+  - "${_IMAGE}"
+substitutions:
+  _IMAGE: "REGION-docker.pkg.dev/PROJECT/kyozai/app:latest"
+timeout: 1200s

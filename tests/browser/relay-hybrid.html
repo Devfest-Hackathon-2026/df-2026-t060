@@ -1,0 +1,98 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>先生の画面(オンライン + Bluetooth の併用)のテスト</title>
+<!-- 本物のブラウザで、先生の画面を localhost で開いたとき(併用)の流れを確かめる(node tools/browser-check.mjs relay-hybrid)。
+     名前が relay- で始まるので、tools/browser-check.mjs が、本物のサーバーを起動して、/relay/ と /api/ をつなぐ。
+     オンラインは、デモ版の通信層(同じブラウザの中)で、Firebase のまね。Bluetooth の児童は、サーバーの Bluetooth の口(TCP)から、中継アプリのかわりにつなぐ。 -->
+<link rel="stylesheet" href="/css/style.css">
+<pre id="result"></pre>
+<div id="stage"></div>
+<script type="module">
+const checks = [];
+const check = (n, ok, d = '') => { checks.push({ name: n, ok: !!ok, detail: d }); document.getElementById('result').textContent = JSON.stringify({ ok: false, partial: true, checks }); };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const $ = (id) => document.getElementById(id);
+// SSE(終わらない通信)があると仮想の時間が進まないので、最初に届く知らせだけ読む偽の EventSource を使う(tests/browser/relay-teacher.html と同じ)
+window.EventSource = class PollingEventSource {
+  constructor(url) { this.url = url; this.handlers = {}; this.closed = false; this.loop(); }
+  addEventListener(kind, cb) { (this.handlers[kind] ??= []).push(cb); }
+  close() { this.closed = true; }
+  async loop() {
+    while (!this.closed) {
+      const ctrl = new AbortController();
+      try {
+        const res = await fetch(this.url, { signal: ctrl.signal });
+        const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = '', got = 0;
+        while (got < 3 && !this.closed) {
+          const { value, done } = await reader.read(); if (done) break;
+          buf += dec.decode(value, { stream: true });
+          let i; while ((i = buf.indexOf('\n\n')) >= 0) {
+            const block = buf.slice(0, i); buf = buf.slice(i + 2);
+            const ev = /^event: (.+)$/m.exec(block), d = /^data: (.+)$/m.exec(block);
+            if (ev && d) { got++; for (const cb of this.handlers[ev[1]] ?? []) cb({ data: d[1] }); }
+          }
+        }
+      } catch { /* つぎの回で、もう一度 */ }
+      ctrl.abort();
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+};
+const errors = [];
+addEventListener('error', (e) => errors.push(String(e.message)));
+addEventListener('unhandledrejection', (e) => errors.push(String(e.reason?.message ?? e.reason)));
+try {
+  localStorage.clear();
+  history.replaceState(null, '', `${location.pathname}?demo&hybrid`); // オンラインは、デモ版(Firebase のまね)。?hybrid をつけて、デモでも併用にする(ふつうの ?demo は、併用しない)
+  const html = await (await fetch('/teacher.html')).text();
+  const body = new DOMParser().parseFromString(html, 'text/html').body;
+  $('stage').replaceChildren(...[...body.childNodes].filter((n) => n.tagName !== 'SCRIPT'));
+  await import('/js/teacher.js');
+  await wait(600);
+
+  check('モードの表示は、Bluetooth 教室(relay)ではなく、ふつうのオンライン側(デモ版)', !/Bluetooth教室/.test($('mode').textContent), $('mode').textContent);
+  $('className').value = '併用のクラス'; $('grade').value = '6';
+  $('setupForm').dispatchEvent(new Event('submit', { cancelable: true }));
+  await wait(1200);
+  const code = $('code').textContent;
+  check('オンラインのクラスができて、クラスコードが出る', !$('app').hidden && /^[A-HJ-NP-Z2-9]{6}$/.test(code), code);
+  check('先生の画面に「Bluetooth ●使えます」と、つながっている端末の数が出る', !$('bleStatus').hidden && /Bluetooth ●使えます.*0 台/.test($('bleStatus').textContent), $('bleStatus').textContent);
+  check('児童用ページは、これまでどおりのオンラインのリンク(ble の印はつかない)', !/[?&]ble\b/.test($('studentUrl').textContent) && $('studentUrl').textContent.includes(`code=${code}`), $('studentUrl').textContent);
+
+  // 先生PCの Bluetooth 教室にも、同じクラスコードの教室ができている
+  const cls = await (await fetch(`/relay/class/${code}`)).json();
+  check('先生PCの Bluetooth 教室にも、同じコード・同じ名前・同じ学年の教室ができている', cls.code === code && cls.name === '併用のクラス' && cls.grade === 6, JSON.stringify(cls));
+
+  // 教材を配信 → オンラインにも、Bluetooth の児童にも届く
+  const f = $('matForm').elements;
+  f.title.value = '併用で配る教材'; f.explanation.value = '説明のぶん';
+  $('matForm').dispatchEvent(new Event('submit', { cancelable: true }));
+  await wait(1000);
+  check('配信ずみの一覧に出る(オンライン側)', /併用で配る教材/.test($('materials').textContent), $('materials').textContent.slice(0, 60));
+  const ble = await (await fetch(`/__relay/materials?code=${code}`)).json();
+  check('Bluetooth の児童の端末にも、同じ教材が届く', ble.length === 1 && ble[0].title === '併用で配る教材', JSON.stringify(ble.map((m) => m.title)));
+  const onlineIds = JSON.parse(localStorage.getItem(`kyozai-demo:${code}`)).materials.map((m) => m.id);
+  check('オンラインの教材と、Bluetooth の教材は、同じ id(二重にならない)', onlineIds.length === 1 && onlineIds[0] === ble[0].id, `${onlineIds} / ${ble.map((m) => m.id)}`);
+
+  // 質問:オンラインの児童と、Bluetooth の児童の両方が、先生の1つの一覧に出る
+  const { createTransport } = await import('/js/transport.js');
+  const onlineKid = await createTransport(); // オンラインの児童(デモ版。同じブラウザの中)
+  await onlineKid.sendQuestion(code, { seat: 3, text: 'オンラインの児童の質問です' });
+  const ask = await (await fetch(`/__relay/ask?code=${code}&text=${encodeURIComponent('Bluetoothの児童の質問です')}&seat=8`)).json();
+  check('Bluetooth の児童の質問が、先生PCに受けとられた', ask.ok === true, JSON.stringify(ask));
+  await wait(1500);
+  const qtext = $('questions').textContent;
+  check('先生の「届いた質問」に、2つの質問が両方出る', /オンラインの児童の質問です/.test(qtext) && /Bluetoothの児童の質問です/.test(qtext) && /未対応 2件/.test($('qCount').textContent), `${$('qCount').textContent} / ${qtext.slice(0, 120)}`);
+  const lis = [...$('questions').querySelectorAll('li')];
+  const bleLi = lis.find((li) => /Bluetoothの児童の質問です/.test(li.textContent)), onLi = lis.find((li) => /オンラインの児童の質問です/.test(li.textContent));
+  check('Bluetooth の児童の質問にだけ、「Bluetooth」の印がつく', !!bleLi?.querySelector('.tag[title]') && /Bluetooth/.test(bleLi.querySelector('.tag[title]').textContent) && !onLi?.querySelector('.tag[title]'));
+  // 「対応済み」:Bluetooth の質問に印をつける → 先生PCの教室に反映
+  [...bleLi.querySelectorAll('button')].find((b) => /対応済み/.test(b.textContent)).click();
+  await wait(1200);
+  check('Bluetooth の質問を「対応済み」にすると、未対応が 1件になる', /未対応 1件/.test($('qCount').textContent), $('qCount').textContent);
+
+  // AIサーバー:併用でも、(ログインなしの)先生PC自身のクラスではないので、これまでどおりトークンが要る
+  check('画面のエラー(例外)が出ていない', errors.length === 0, errors.join(' / '));
+} catch (e) { checks.push({ name: '例外', ok: false, detail: String(e.stack || e) }); }
+document.getElementById('result').textContent = JSON.stringify({ ok: checks.every((c) => c.ok), checks });
+</script>
